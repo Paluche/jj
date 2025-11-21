@@ -66,6 +66,10 @@ fn test_file_list() {
     dir/file [file] conflict=false executable=false
     exec-file [file] conflict=false executable=true
     [EOF]
+    ------- stderr -------
+    Auto-tracking 1 new file:
+      dir/file2
+    [EOF]
     ");
 
     // Can list files in another revision

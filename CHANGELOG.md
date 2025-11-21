@@ -96,6 +96,9 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   returns a `TreeDiff` between the entry's commit and its predecessor version.
   Optionally accepts a fileset literal to limit the diff.
 
+* Print a message to indicate to the user when files starts to be tracked by
+  the auto-tracking system.
+
 ### Fixed bugs
 
 * Broken symlink on Windows. [#6934](https://github.com/jj-vcs/jj/issues/6934).
