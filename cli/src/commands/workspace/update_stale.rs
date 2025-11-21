@@ -35,7 +35,15 @@ pub fn cmd_workspace_update_stale(
     _args: &WorkspaceUpdateStaleArgs,
 ) -> Result<(), CommandError> {
     let (workspace_command, stats) = command.recover_stale_working_copy(ui)?;
-    print_snapshot_stats(ui, &stats, workspace_command.env().path_converter())?;
+    print_snapshot_stats(
+        ui,
+        &stats,
+        workspace_command.env().path_converter(),
+        command
+            .settings()
+            .get_bool("snapshot.verbose-auto-track")
+            .unwrap_or(true),
+    )?;
 
     Ok(())
 }

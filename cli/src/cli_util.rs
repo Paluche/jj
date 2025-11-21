@@ -431,7 +431,14 @@ impl CommandHelper {
     #[instrument(skip(self, ui))]
     pub fn workspace_helper(&self, ui: &Ui) -> Result<WorkspaceCommandHelper, CommandError> {
         let (workspace_command, stats) = self.workspace_helper_with_stats(ui)?;
-        print_snapshot_stats(ui, &stats, workspace_command.env().path_converter())?;
+        print_snapshot_stats(
+            ui,
+            &stats,
+            workspace_command.env().path_converter(),
+            self.settings()
+                .get_bool("snapshot.verbose-auto-track")
+                .unwrap_or(true),
+        )?;
         Ok(workspace_command)
     }
 
@@ -1178,7 +1185,14 @@ impl WorkspaceCommandHelper {
         let stats = self
             .maybe_snapshot_impl(ui)
             .map_err(|err| err.into_command_error())?;
-        print_snapshot_stats(ui, &stats, self.env().path_converter())?;
+        print_snapshot_stats(
+            ui,
+            &stats,
+            self.env().path_converter(),
+            self.settings()
+                .get_bool("snapshot.verbose-auto-track")
+                .unwrap_or(true),
+        )?;
         Ok(())
     }
 
@@ -2868,8 +2882,11 @@ pub fn print_snapshot_stats(
     ui: &Ui,
     stats: &SnapshotStats,
     path_converter: &RepoPathUiConverter,
+    verbose_auto_track: bool,
 ) -> io::Result<()> {
-    print_new_tracked_files(ui, &stats.new_tracked_paths, path_converter)?;
+    if verbose_auto_track {
+        print_new_tracked_files(ui, &stats.new_tracked_paths, path_converter)?;
+    }
     print_untracked_files(ui, &stats.untracked_paths, path_converter)?;
 
     let large_files_sizes = stats

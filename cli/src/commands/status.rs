@@ -65,6 +65,8 @@ pub(crate) fn cmd_status(
         ui,
         &snapshot_stats,
         workspace_command.env().path_converter(),
+        false, /* Do not print the auto-track information it will be duplicating information
+                * relative to what the status command will display. */
     )?;
     let repo = workspace_command.repo();
     let maybe_wc_commit = workspace_command
