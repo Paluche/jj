@@ -59,6 +59,9 @@ fn test_split_by_paths() {
     @  qpvuntsmwlqt false
     ◆  zzzzzzzzzzzz true
     [EOF]
+    ------- stderr -------
+    Starting tracking 'file3' and 2 other files
+    [EOF]
     ");
     insta::assert_snapshot!(get_recorded_dates(&work_dir, "@"), @r"
     Author date:  2001-02-03 04:05:08.000 +07:00
@@ -284,6 +287,7 @@ fn test_split_with_default_description() {
     insta::assert_snapshot!(output, @r#"
     ------- stderr -------
     Warning: Deprecated user-level config: ui.default-description is updated to template-aliases.default_commit_description = '"\n\nTESTED=TODO\n"'
+    Starting tracking 'file1' and 1 other file
     Selected changes : qpvuntsm ff633dcc TESTED=TODO
     Remaining changes: rlvkpnrz b1d20b7e (no description set)
     Working copy  (@) now at: rlvkpnrz b1d20b7e (no description set)
@@ -520,6 +524,7 @@ fn test_split_parallel_no_descendants() {
     [EOF]
     ------- stderr -------
     Warning: Deprecated user-level config: ui.default-description is updated to template-aliases.default_commit_description = '"\n\nTESTED=TODO\n"'
+    Starting tracking 'file1' and 1 other file
     [EOF]
     "#);
 
@@ -817,6 +822,7 @@ fn test_split_interactive() {
     let output = work_dir.run_jj(["split"]);
     insta::assert_snapshot!(output, @r"
     ------- stderr -------
+    Starting tracking 'file1' and 1 other file
     Selected changes : qpvuntsm c664a51b (no description set)
     Remaining changes: rlvkpnrz 7e5d65b1 (no description set)
     Working copy  (@) now at: rlvkpnrz 7e5d65b1 (no description set)
@@ -894,6 +900,7 @@ fn test_split_interactive_with_paths() {
     let output = work_dir.run_jj(["split", "-i", "file1", "file2"]);
     insta::assert_snapshot!(output, @r"
     ------- stderr -------
+    Starting tracking 'file1'
     Selected changes : rlvkpnrz cdc9960a (no description set)
     Remaining changes: kkmpptxz 7255f070 (no description set)
     Working copy  (@) now at: kkmpptxz 7255f070 (no description set)

@@ -2837,11 +2837,39 @@ pub fn print_untracked_files(
     Ok(())
 }
 
+pub fn print_new_tracked_files(
+    ui: &Ui,
+    new_tracked_paths: &[RepoPathBuf],
+    path_converter: &RepoPathUiConverter,
+) -> io::Result<()> {
+    if new_tracked_paths.is_empty() {
+        return Ok(());
+    }
+    let Some(mut formatter) = ui.status_formatter() else {
+        return Ok(());
+    };
+
+    // Avoid spamming the screen with the information.
+    let ui_path = path_converter.format_file_path(new_tracked_paths.first().unwrap());
+    write!(formatter, "Starting tracking '{ui_path}'")?;
+    if new_tracked_paths.len() > 1 {
+        write!(formatter, " and {} other file", new_tracked_paths.len() - 1)?;
+
+        if new_tracked_paths.len() > 2 {
+            write!(formatter, "s")?;
+        }
+    }
+    writeln!(formatter)?;
+
+    Ok(())
+}
+
 pub fn print_snapshot_stats(
     ui: &Ui,
     stats: &SnapshotStats,
     path_converter: &RepoPathUiConverter,
 ) -> io::Result<()> {
+    print_new_tracked_files(ui, &stats.new_tracked_paths, path_converter)?;
     print_untracked_files(ui, &stats.untracked_paths, path_converter)?;
 
     let large_files_sizes = stats

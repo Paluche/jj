@@ -51,6 +51,7 @@ fn test_config_no_tools() {
     let output = work_dir.run_jj(["fix"]);
     insta::assert_snapshot!(output, @r"
     ------- stderr -------
+    Starting tracking 'file'
     Config error: No `fix.tools` are configured
     For help, see https://docs.jj-vcs.dev/latest/config/ or use `jj help -k config`.
     [EOF]
@@ -82,6 +83,7 @@ fn test_config_nonexistent_tool() {
     // We inform the user about the non-existent tool
     insta::assert_snapshot!(output, @r"
     ------- stderr -------
+    Starting tracking 'file'
     Warning: Failed to start `nonexistent-fix-tool-binary`
     Fixed 0 commits of 1 checked.
     Nothing changed.
@@ -180,6 +182,9 @@ fn test_config_multiple_tools_with_same_name() {
     insta::assert_snapshot!(output, @r"
     Foo
     [EOF]
+    ------- stderr -------
+    Starting tracking 'bar' and 1 other file
+    [EOF]
     ");
     let output = work_dir.run_jj(["file", "show", "bar", "-r", "@"]);
     insta::assert_snapshot!(output, @r"
@@ -260,6 +265,7 @@ fn test_config_disabled_tools_warning_when_all_tools_are_disabled() {
     let output = work_dir.run_jj(["fix"]);
     insta::assert_snapshot!(output, @r"
     ------- stderr -------
+    Starting tracking 'bar'
     Config error: At least one entry of `fix.tools` must be enabled.
     For help, see https://docs.jj-vcs.dev/latest/config/ or use `jj help -k config`.
     [EOF]
@@ -331,6 +337,7 @@ fn test_config_tables_all_commands_missing() {
     let output = work_dir.run_jj(["fix"]);
     insta::assert_snapshot!(output.normalize_backslash(), @r"
     ------- stderr -------
+    Starting tracking 'foo'
     Config error: Invalid type or value for fix.tools.my-tool-missing-command-1
     Caused by: missing field `command`
 
@@ -371,6 +378,7 @@ fn test_config_tables_some_commands_missing() {
     let output = work_dir.run_jj(["fix"]);
     insta::assert_snapshot!(output.normalize_backslash(), @r"
     ------- stderr -------
+    Starting tracking 'foo'
     Config error: Invalid type or value for fix.tools.my-tool-missing-command
     Caused by: missing field `command`
 
@@ -408,6 +416,7 @@ fn test_config_tables_empty_patterns_list() {
     let output = work_dir.run_jj(["fix"]);
     insta::assert_snapshot!(output, @r"
     ------- stderr -------
+    Starting tracking 'foo'
     Fixed 0 commits of 1 checked.
     Nothing changed.
     [EOF]
@@ -917,6 +926,7 @@ fn test_fix_empty_file() {
     let output = work_dir.run_jj(["fix", "-s", "@"]);
     insta::assert_snapshot!(output, @r"
     ------- stderr -------
+    Starting tracking 'file'
     Fixed 0 commits of 1 checked.
     Nothing changed.
     [EOF]
@@ -952,6 +962,7 @@ fn test_fix_large_file() {
     let output = work_dir.run_jj(["fix", "-s", "@"]);
     insta::assert_snapshot!(output, @r"
     ------- stderr -------
+    Starting tracking 'file'
     Fixed 1 commits of 1 checked.
     Working copy  (@) now at: qpvuntsm d500c021 (no description set)
     Parent commit (@-)      : zzzzzzzz 00000000 (empty) (no description set)
@@ -976,6 +987,7 @@ fn test_fix_some_paths() {
     let output = work_dir.run_jj(["fix", "-s", "@", "file1"]);
     insta::assert_snapshot!(output, @r"
     ------- stderr -------
+    Starting tracking 'file1' and 1 other file
     Fixed 1 commits of 1 checked.
     Working copy  (@) now at: qpvuntsm 0279baba (no description set)
     Parent commit (@-)      : zzzzzzzz 00000000 (empty) (no description set)
@@ -999,6 +1011,7 @@ fn test_fix_cyclic() {
     let output = work_dir.run_jj(["fix"]);
     insta::assert_snapshot!(output, @r"
     ------- stderr -------
+    Starting tracking 'file'
     Fixed 1 commits of 1 checked.
     Working copy  (@) now at: qpvuntsm ce361156 (no description set)
     Parent commit (@-)      : zzzzzzzz 00000000 (empty) (no description set)
@@ -1065,6 +1078,9 @@ fn test_deduplication() {
     insta::assert_snapshot!(output, @r"
     FOO
     [EOF]
+    ------- stderr -------
+    Starting tracking 'file-fixlog'
+    [EOF]
     ");
     let output = work_dir.run_jj(["file", "show", "file", "-r", "b"]);
     insta::assert_snapshot!(output, @r"
@@ -1114,6 +1130,7 @@ fn test_executed_but_nothing_changed() {
     let output = work_dir.run_jj(["fix", "-s", "@"]);
     insta::assert_snapshot!(output, @r"
     ------- stderr -------
+    Starting tracking 'file'
     Fixed 0 commits of 1 checked.
     Nothing changed.
     [EOF]
@@ -1121,6 +1138,9 @@ fn test_executed_but_nothing_changed() {
     let output = work_dir.run_jj(["file", "show", "file", "-r", "@"]);
     insta::assert_snapshot!(output, @r"
     content
+    [EOF]
+    ------- stderr -------
+    Starting tracking 'file-copy'
     [EOF]
     ");
     let copy_content = work_dir.read_file("file-copy");
@@ -1156,6 +1176,7 @@ fn test_failure() {
     let output = work_dir.run_jj(["fix", "-s", "@"]);
     insta::assert_snapshot!(output, @r"
     ------- stderr -------
+    Starting tracking 'file'
     Warning: Fix tool `$FAKE_FORMATTER_PATH` exited with non-zero exit code for `file`
     Fixed 0 commits of 1 checked.
     Nothing changed.
@@ -1181,6 +1202,7 @@ fn test_stderr_success() {
     let output = work_dir.run_jj(["fix", "-s", "@"]);
     insta::assert_snapshot!(output, @r"
     ------- stderr -------
+    Starting tracking 'file'
     file:
     error
     Fixed 1 commits of 1 checked.
@@ -1207,6 +1229,7 @@ fn test_stderr_failure() {
     let output = work_dir.run_jj(["fix", "-s", "@"]);
     insta::assert_snapshot!(output, @r"
     ------- stderr -------
+    Starting tracking 'file'
     file:
     error
     Warning: Fix tool `$FAKE_FORMATTER_PATH` exited with non-zero exit code for `file`
@@ -1253,6 +1276,7 @@ fn test_fix_file_types() {
     let output = work_dir.run_jj(["fix", "-s", "@"]);
     insta::assert_snapshot!(output, @r"
     ------- stderr -------
+    Starting tracking 'file' and 1 other file
     Fixed 1 commits of 1 checked.
     Working copy  (@) now at: qpvuntsm 0184b215 (no description set)
     Parent commit (@-)      : zzzzzzzz 00000000 (empty) (no description set)
@@ -1279,6 +1303,7 @@ fn test_fix_executable() {
     let output = work_dir.run_jj(["fix", "-s", "@"]);
     insta::assert_snapshot!(output, @r"
     ------- stderr -------
+    Starting tracking 'file'
     Fixed 1 commits of 1 checked.
     Working copy  (@) now at: qpvuntsm 5293bf26 (no description set)
     Parent commit (@-)      : zzzzzzzz 00000000 (empty) (no description set)
@@ -1355,6 +1380,7 @@ fn test_fix_adding_merge_commit() {
     let output = work_dir.run_jj(["fix", "-s", "@"]);
     insta::assert_snapshot!(output, @r"
     ------- stderr -------
+    Starting tracking 'file_d'
     Fixed 1 commits of 1 checked.
     Working copy  (@) now at: mzvwutvl 9f580aac (no description set)
     Parent commit (@-)      : qpvuntsm 93f04460 a | (no description set)

@@ -126,6 +126,9 @@ fn test_track_untrack_sparse() {
     file1
     file2
     [EOF]
+    ------- stderr -------
+    Starting tracking 'file1' and 1 other file
+    [EOF]
     ");
     work_dir
         .run_jj(["sparse", "set", "--clear", "--add", "file1"])
@@ -163,6 +166,9 @@ fn test_auto_track() {
     let output = work_dir.run_jj(["file", "list"]);
     insta::assert_snapshot!(output, @r"
     file1.rs
+    [EOF]
+    ------- stderr -------
+    Starting tracking 'file1.rs'
     [EOF]
     ");
 
@@ -250,6 +256,9 @@ fn test_track_ignored_with_flag() {
     .gitignore
     file1.txt
     [EOF]
+    ------- stderr -------
+    Starting tracking '.gitignore' and 1 other file
+    [EOF]
     ");
 
     // Track ignored file with --include-ignored
@@ -280,6 +289,7 @@ fn test_track_large_file_with_flag() {
     small.txt
     [EOF]
     ------- stderr -------
+    Starting tracking 'small.txt'
     Warning: Refused to snapshot some files:
       large.txt: 20.0B (20 bytes); the maximum size allowed is 10.0B (10 bytes)
     Hint: This is to prevent large files from being added by accident. You can fix this by:
@@ -330,6 +340,9 @@ fn test_track_ignored_directory() {
     let output = work_dir.run_jj(["file", "list"]);
     insta::assert_snapshot!(output, @r"
     .gitignore
+    [EOF]
+    ------- stderr -------
+    Starting tracking '.gitignore'
     [EOF]
     ");
 

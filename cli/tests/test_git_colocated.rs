@@ -201,6 +201,7 @@ fn test_git_colocated_unborn_bookmark() {
     let output = work_dir.run_jj(["new", "root()"]);
     insta::assert_snapshot!(output, @r"
     ------- stderr -------
+    Starting tracking 'file0'
     Working copy  (@) now at: kkmpptxz 2b17ac71 (empty) (no description set)
     Parent commit (@-)      : zzzzzzzz 00000000 (empty) (no description set)
     Added 0 files, modified 0 files, removed 1 files
@@ -233,6 +234,7 @@ fn test_git_colocated_unborn_bookmark() {
     let output = work_dir.run_jj(["new"]);
     insta::assert_snapshot!(output, @r"
     ------- stderr -------
+    Starting tracking 'file1'
     Working copy  (@) now at: royxmykx c5b52bf2 (empty) (no description set)
     Parent commit (@-)      : kkmpptxz 54ca7830 (no description set)
     [EOF]
@@ -270,6 +272,7 @@ fn test_git_colocated_unborn_bookmark() {
     let output = work_dir.run_jj(["new", "root()"]);
     insta::assert_snapshot!(output, @r"
     ------- stderr -------
+    Starting tracking 'file2'
     Working copy  (@) now at: znkkpsqq 2b2f7cb0 (empty) (no description set)
     Parent commit (@-)      : zzzzzzzz 00000000 (empty) (no description set)
     Added 0 files, modified 0 files, removed 2 files
@@ -300,6 +303,7 @@ fn test_git_colocated_unborn_bookmark() {
     let output = work_dir.run_jj(["new"]);
     insta::assert_snapshot!(output, @r"
     ------- stderr -------
+    Starting tracking 'file3'
     Working copy  (@) now at: wqnwkozp 4253b9c0 (empty) (no description set)
     Parent commit (@-)      : znkkpsqq b8df84db (no description set)
     [EOF]
