@@ -2831,11 +2831,39 @@ pub fn print_untracked_files(
     Ok(())
 }
 
+pub fn print_new_tracked_files(
+    ui: &Ui,
+    new_tracked_paths: &Vec<RepoPathBuf>,
+    path_converter: &RepoPathUiConverter,
+) -> io::Result<()> {
+    if new_tracked_paths.is_empty() {
+        return Ok(());
+    }
+    let Some(mut formatter) = ui.status_formatter() else {
+        return Ok(());
+    };
+
+    // XXX Print the shortest path possible. Best effort to avoid long list of
+    // newly tracked files.
+    // - If the new file is at the root directory, then simply print it.
+    // - Otherwise find the exact directory we started tracking.
+    // - Print the full file path if is the one added in a directory.
+    writeln!(formatter, "Starting tracking")?;
+    for path in new_tracked_paths {
+        let ui_path = path_converter.format_file_path(path);
+        writeln!(formatter.labeled("diff").labeled("added"), "A {ui_path}")?;
+    }
+
+    Ok(())
+}
+
 pub fn print_snapshot_stats(
     ui: &Ui,
     stats: &SnapshotStats,
     path_converter: &RepoPathUiConverter,
 ) -> io::Result<()> {
+    // XXX Do not print the newly tracked files for a status command.
+    print_new_tracked_files(ui, &stats.new_tracked_paths, path_converter)?;
     print_untracked_files(ui, &stats.untracked_paths, path_converter)?;
 
     let large_files_sizes = stats
