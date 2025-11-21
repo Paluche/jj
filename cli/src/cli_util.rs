@@ -790,13 +790,16 @@ impl CommandHelper {
                         mut untracked_paths,
                         mut invalid_utf8_paths,
                         ignored_paths,
+                        mut newly_tracked_paths,
                     } = stale_stats;
                     untracked_paths.extend(fresh_stats.untracked_paths);
                     invalid_utf8_paths.extend(fresh_stats.invalid_utf8_paths);
+                    newly_tracked_paths.extend(fresh_stats.newly_tracked_paths);
                     SnapshotStats {
                         untracked_paths,
                         invalid_utf8_paths,
                         ignored_paths,
+                        newly_tracked_paths,
                     }
                 };
                 Ok((workspace_command, merged_stats))
