@@ -360,6 +360,8 @@ fn test_absorb_discardable_merge_with_descendant() {
     let output = work_dir.run_jj(["absorb", "--from=@-"]);
     insta::assert_snapshot!(output, @r"
     ------- stderr -------
+    Auto-tracking 1 new file:
+      file2
     Absorbed changes into 2 revisions:
       zsuskuln a6cd8e87 2
       kkmpptxz 98b7d214 1
@@ -423,6 +425,8 @@ fn test_absorb_conflict() {
     let output = work_dir.run_jj(["rebase", "-r@", "-dsubject(1)"]);
     insta::assert_snapshot!(output, @r"
     ------- stderr -------
+    Auto-tracking 1 new file:
+      file1
     Rebased 1 commits to destination
     Working copy  (@) now at: kkmpptxz fd856fef (conflict) (no description set)
     Parent commit (@-)      : qpvuntsm e35bcaff 1

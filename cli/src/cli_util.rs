@@ -2845,11 +2845,127 @@ pub fn print_untracked_files(
     Ok(())
 }
 
+pub fn print_newly_tracked_files(
+    ui: &Ui,
+    newly_tracked_paths: &[RepoPathBuf],
+    path_converter: &RepoPathUiConverter,
+) -> io::Result<()> {
+    // TODO:
+    // - s/newly_tracked_files/newly_tracked_files
+    // - collapse the list of files when they belong to a same directory, see to
+    //   implement something similar to / or reuse
+    //   commands::status::visit_collapsed_untracked_files()
+    // - With the collapsed output, we can fall back to a message displayed
+    // which mimicks the status command output.
+    //  proposed format:
+    // ```
+    // Auto-tracking {nb_total} new files:
+    //     {file_path}
+    //     {dir_path} ({nb_files_in_dir)
+    //     ... and {remaining} other files.
+    // ```
+    // Last line appearing only when the message starts to be too long (~10
+    // lines maximum). Path and numbers of file printed with the diff-added
+    // color (green by default).
+    if newly_tracked_paths.is_empty() {
+        return Ok(());
+    }
+    let Some(mut formatter) = ui.status_formatter() else {
+        return Ok(());
+    };
+
+    write!(formatter, "Auto-tracking ")?;
+    write!(
+        formatter.labeled("diff").labeled("added"),
+        "{}",
+        newly_tracked_paths.len()
+    )?;
+    writeln!(
+        formatter,
+        " new file{}:",
+        if newly_tracked_paths.len() > 1 {
+            "s"
+        } else {
+            ""
+        }
+    )?;
+
+    for path in newly_tracked_paths
+        .iter()
+        .map(|p| path_converter.format_file_path(p))
+    {
+        writeln!(formatter.labeled("diff").labeled("added"), "  {path}")?;
+    }
+
+    Ok(())
+}
+
+pub async fn visit_collapsed_files(
+    paths: impl IntoIterator<Item = impl AsRef<RepoPath>>,
+    tree: MergedTree,
+    mut on_path: impl FnMut(&RepoPath, bool) -> Result<(), CommandError>,
+) -> Result<(), CommandError> {
+    let trees = tree.trees()?;
+    let mut stack = vec![trees];
+
+    // TODO: This loop can be improved with BTreeMap cursors once that's stable,
+    // would remove the need for the whole `skip_prefixed_by` thing and turn it
+    // into a B-tree lookup.
+    let mut skip_prefixed_by_dir: Option<RepoPathBuf> = None;
+    'found: for path in paths {
+        let path = path.as_ref();
+        if skip_prefixed_by_dir
+            .as_ref()
+            .is_some_and(|p| path.starts_with(p))
+        {
+            continue;
+        } else {
+            skip_prefixed_by_dir = None;
+        }
+
+        let mut it = path.components().dropping_back(1);
+        let first_mismatch = it.by_ref().enumerate().find(|(i, component)| {
+            stack.get(i + 1).is_none_or(|tree| {
+                tree.dir()
+                    .components()
+                    .next_back()
+                    .expect("should always have at least one element (the root)")
+                    != *component
+            })
+        });
+
+        if let Some((i, component)) = first_mismatch {
+            stack.truncate(i + 1);
+            for component in std::iter::once(component).chain(it) {
+                let parent = stack
+                    .last()
+                    .expect("should always have at least one element (the root)");
+
+                if let Some(subtree) = parent.sub_tree(component).await? {
+                    stack.push(subtree);
+                } else {
+                    let dir = parent.dir().join(component);
+
+                    on_path(&dir, true)?;
+                    skip_prefixed_by_dir = Some(dir);
+
+                    continue 'found;
+                }
+            }
+        }
+
+        on_path(path, false)?;
+    }
+
+    Ok(())
+}
+
 pub fn print_snapshot_stats(
     ui: &Ui,
     stats: &SnapshotStats,
     path_converter: &RepoPathUiConverter,
 ) -> io::Result<()> {
+    print_newly_tracked_files(ui, &stats.newly_tracked_paths, path_converter)?;
     print_untracked_files(ui, &stats.untracked_paths, path_converter)?;
 
     let large_files_sizes = stats

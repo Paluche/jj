@@ -31,6 +31,10 @@ fn test_file_list() {
     dir/file2
     file1
     [EOF]
+    ------- stderr -------
+    Auto-tracking 1 new file:
+      dir/file2
+    [EOF]
     ");
 
     // Can list files in another revision

@@ -74,6 +74,9 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   conflict came from (currently this is only supported for conflicts created by
   certain commands).
 
+* Print a message to indicate to the user when files starts to be tracked by
+  the auto-tracking system.
+
 ### Fixed bugs
 
 * Broken symlink on Windows. [#6934](https://github.com/jj-vcs/jj/issues/6934).
