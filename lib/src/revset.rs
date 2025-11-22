@@ -1141,7 +1141,7 @@ pub fn expect_fileset_expression(
     // weird, we can either transform AST or turn off revset aliases completely.
     revset_parser::catch_aliases(diagnostics, node, |diagnostics, node| {
         let mut inner_diagnostics = FilesetDiagnostics::new();
-        let expression = fileset::parse(&mut inner_diagnostics, node.span.as_str(), path_converter)
+        let expression = fileset::parse(&mut inner_diagnostics, node.span.as_str(), path_converter, false)
             .map_err(|err| {
                 RevsetParseError::expression("In fileset expression", node.span).with_source(err)
             })?;

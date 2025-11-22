@@ -1574,19 +1574,19 @@ impl FileSnapshotter<'_> {
             // Whether or not the directory path matches, any child file entries
             // shouldn't be touched within the current recursion step.
             Ok(Some((PresentDirEntryKind::Dir, name_string)))
-        } else if self.matcher.matches(&path) {
+        } else if self.matcher.matches(&path, None) {
             if let Some(progress) = self.progress {
                 progress(&path);
             }
             if maybe_current_file_state.is_none()
                 && (git_ignore.matches(path.as_internal_file_string())
-                    && !self.force_tracking_matcher.matches(&path))
+                    && !self.force_tracking_matcher.matches(&path, None))
             {
                 // If it wasn't already tracked and it matches
                 // the ignored paths, then ignore it.
                 Ok(None)
             } else if maybe_current_file_state.is_none()
-                && !self.start_tracking_matcher.matches(&path)
+                && !self.start_tracking_matcher.matches(&path, None)
             {
                 // Leave the file untracked
                 self.untracked_paths_tx
@@ -1600,7 +1600,7 @@ impl FileSnapshotter<'_> {
                 })?;
                 if maybe_current_file_state.is_none()
                     && (metadata.len() > self.max_new_file_size
-                        && !self.force_tracking_matcher.matches(&path))
+                        && !self.force_tracking_matcher.matches(&path, None))
                 {
                     // Leave the large file untracked
                     let reason = UntrackedReason::FileTooLarge {
@@ -1633,7 +1633,7 @@ impl FileSnapshotter<'_> {
             if current_file_state.file_type == FileType::GitSubmodule {
                 continue;
             }
-            if !self.matcher.matches(tracked_path) {
+            if !self.matcher.matches(tracked_path, None) {
                 continue;
             }
             let disk_path = tracked_path.to_fs_path(&self.tree_state.working_copy_path)?;
@@ -1718,7 +1718,7 @@ impl FileSnapshotter<'_> {
             .flat_map(|(_, chunk)| chunk)
             // Whether or not the entry exists, submodule should be ignored
             .filter(|(_, state)| state.file_type != FileType::GitSubmodule)
-            .filter(|(path, _)| self.matcher.matches(path))
+            .filter(|(path, _)| self.matcher.matches(path, None))
             .try_for_each(|(path, _)| self.deleted_files_tx.send(path.to_owned()))
             .ok();
     }

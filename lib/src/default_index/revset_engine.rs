@@ -1274,7 +1274,7 @@ fn build_predicate_fn(
             let matcher: Rc<dyn Matcher> = expr.to_matcher().into();
             box_pure_predicate_fn(move |index, pos| {
                 if let Some(mut paths) = index.changed_paths().changed_paths(pos) {
-                    return Ok(paths.any(|path| matcher.matches(path)));
+                    return Ok(paths.any(|path| matcher.matches(path, None)));
                 }
                 let entry = index.commits().entry_by_pos(pos);
                 let commit = store.get_commit(&entry.commit_id())?;
@@ -1288,7 +1288,7 @@ fn build_predicate_fn(
                 let narrowed_files_matcher;
                 let files_matcher = if let Some(paths) = index.changed_paths().changed_paths(pos) {
                     let matched_paths = paths
-                        .filter(|path| files_matcher.matches(path))
+                        .filter(|path| files_matcher.matches(path, None))
                         .collect_vec();
                     if matched_paths.is_empty() {
                         return Ok(false);

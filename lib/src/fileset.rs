@@ -45,11 +45,13 @@ use crate::matchers::Matcher;
 use crate::matchers::NothingMatcher;
 use crate::matchers::PrefixMatcher;
 use crate::matchers::UnionMatcher;
+use crate::matchers::ExecutableMatcher;
 use crate::repo_path::RelativePathParseError;
 use crate::repo_path::RepoPath;
 use crate::repo_path::RepoPathBuf;
 use crate::repo_path::RepoPathUiConverter;
 use crate::repo_path::UiPathParseError;
+use crate::revset::RevsetFilterPredicate;
 
 /// Error occurred during file pattern parsing.
 #[derive(Debug, Error)]
@@ -92,6 +94,11 @@ pub enum FilePattern {
     // TODO: add more patterns:
     // - FilesInPath: files in directory, non-recursively?
     // - NameGlob or SuffixGlob: file name with glob?
+}
+
+#[derive(Clone, Debug)]
+pub enum FilesetContentFilterPredicate {
+    Executable(Box<FilesetExpression>),
 }
 
 impl FilePattern {
@@ -339,6 +346,8 @@ pub enum FilesetExpression {
     Intersection(Box<Self>, Box<Self>),
     /// Matches the first expression, but not the second expression.
     Difference(Box<Self>, Box<Self>),
+    /// Filter based on the content of the file
+    ContentFilter(FilesetContentFilterPredicate)
 }
 
 impl FilesetExpression {
@@ -386,6 +395,11 @@ impl FilesetExpression {
         Self::Difference(Box::new(self), Box::new(other))
     }
 
+    /// Keep only the executable files.
+    pub fn executable(self, input: Self) -> Self {
+        Self::Executable(Box::new(input))
+    }
+
     /// Flattens union expression at most one level.
     fn as_union_all(&self) -> &[Self] {
         match self {
@@ -400,7 +414,7 @@ impl FilesetExpression {
         iter::from_fn(move || {
             let expr = stack.pop()?;
             match expr {
-                Self::None | Self::All | Self::Pattern(_) => {}
+                Self::None | Self::All | Self::Pattern(_) | Self::Executable(_) => {}
                 Self::UnionAll(exprs) => stack.extend(exprs.iter().rev()),
                 Self::Intersection(expr1, expr2) | Self::Difference(expr1, expr2) => {
                     stack.push(expr2);
@@ -423,6 +437,9 @@ impl FilesetExpression {
             _ => None,
         })
     }
+    // DRAFT:
+    // If extended is set to true, then we allow the extended filesets
+    // syntaxes which uses the files metadata or content to
 
     /// Transforms the expression tree to `Matcher` object.
     pub fn to_matcher(&self) -> Box<dyn Matcher> {
@@ -466,6 +483,10 @@ fn build_union_matcher(expressions: &[FilesetExpression]) -> Box<dyn Matcher> {
                 let m2 = build_union_matcher(expr2.as_union_all());
                 Box::new(DifferenceMatcher::new(m1, m2))
             }
+            FilesetExpression::Executable(expr) => {
+                let m = build_union_matcher(expr.as_union_all());
+                Box::new(ExecutableMatcher::new(m))
+            }
         };
         matchers.push(Some(matcher));
     }
@@ -507,6 +528,7 @@ type FilesetFunction = fn(
     &mut FilesetDiagnostics,
     &RepoPathUiConverter,
     &FunctionCallNode,
+    &LoweringContext,
 ) -> FilesetParseResult<FilesetExpression>;
 
 static BUILTIN_FUNCTION_MAP: LazyLock<HashMap<&str, FilesetFunction>> = LazyLock::new(|| {
@@ -520,6 +542,13 @@ static BUILTIN_FUNCTION_MAP: LazyLock<HashMap<&str, FilesetFunction>> = LazyLock
     map.insert("all", |_diagnostics, _path_converter, function| {
         function.expect_no_arguments()?;
         Ok(FilesetExpression::all())
+    });
+    map.insert("executables", |_diagnostics, _path_converter, function| {
+        let [arg] = function.expect_exact_arguments()?;
+        let expr = expect_fileset_expression(diagnostics, arg, ctx.path_converter)?;
+        Ok(RevsetExpression::filter(RevsetFilterPredicate::File(expr)))
+        let value = function.expect_some_arguments(1)?;
+        Ok(FilesetExpression::executable(value))
     });
     map
 });
@@ -546,6 +575,7 @@ fn resolve_expression(
     diagnostics: &mut FilesetDiagnostics,
     path_converter: &RepoPathUiConverter,
     node: &ExpressionNode,
+    extended: bool
 ) -> FilesetParseResult<FilesetExpression> {
     let wrap_pattern_error =
         |err| FilesetParseError::expression("Invalid file pattern", node.span).with_source(err);
@@ -566,14 +596,14 @@ fn resolve_expression(
             Ok(FilesetExpression::pattern(pattern))
         }
         ExpressionKind::Unary(op, arg_node) => {
-            let arg = resolve_expression(diagnostics, path_converter, arg_node)?;
+            let arg = resolve_expression(diagnostics, path_converter, arg_node, extended)?;
             match op {
                 UnaryOp::Negate => Ok(FilesetExpression::all().difference(arg)),
             }
         }
         ExpressionKind::Binary(op, lhs_node, rhs_node) => {
-            let lhs = resolve_expression(diagnostics, path_converter, lhs_node)?;
-            let rhs = resolve_expression(diagnostics, path_converter, rhs_node)?;
+            let lhs = resolve_expression(diagnostics, path_converter, lhs_node, extended)?;
+            let rhs = resolve_expression(diagnostics, path_converter, rhs_node, extended)?;
             match op {
                 BinaryOp::Intersection => Ok(lhs.intersection(rhs)),
                 BinaryOp::Difference => Ok(lhs.difference(rhs)),
@@ -582,7 +612,7 @@ fn resolve_expression(
         ExpressionKind::UnionAll(nodes) => {
             let expressions = nodes
                 .iter()
-                .map(|node| resolve_expression(diagnostics, path_converter, node))
+                .map(|node| resolve_expression(diagnostics, path_converter, node, extended))
                 .try_collect()?;
             Ok(FilesetExpression::union_all(expressions))
         }
@@ -597,10 +627,11 @@ pub fn parse(
     diagnostics: &mut FilesetDiagnostics,
     text: &str,
     path_converter: &RepoPathUiConverter,
+    extended: bool,
 ) -> FilesetParseResult<FilesetExpression> {
     let node = fileset_parser::parse_program(text)?;
     // TODO: add basic tree substitution pass to eliminate redundant expressions
-    resolve_expression(diagnostics, path_converter, &node)
+    resolve_expression(diagnostics, path_converter, &node, extended)
 }
 
 /// Parses text into `FilesetExpression` with bare string fallback.
@@ -611,10 +642,11 @@ pub fn parse_maybe_bare(
     diagnostics: &mut FilesetDiagnostics,
     text: &str,
     path_converter: &RepoPathUiConverter,
+    extended: bool
 ) -> FilesetParseResult<FilesetExpression> {
     let node = fileset_parser::parse_program_or_bare_string(text)?;
     // TODO: add basic tree substitution pass to eliminate redundant expressions
-    resolve_expression(diagnostics, path_converter, &node)
+    resolve_expression(diagnostics, path_converter, &node, extended)
 }
 
 #[cfg(test)]
@@ -660,7 +692,7 @@ mod tests {
             cwd: PathBuf::from("/ws/cur"),
             base: PathBuf::from("/ws"),
         };
-        let parse = |text| parse_maybe_bare(&mut FilesetDiagnostics::new(), text, &path_converter);
+        let parse = |text| parse_maybe_bare(&mut FilesetDiagnostics::new(), text, &path_converter, false);
 
         // cwd-relative patterns
         insta::assert_debug_snapshot!(
@@ -720,7 +752,7 @@ mod tests {
             cwd: PathBuf::from("/ws/cur*"),
             base: PathBuf::from("/ws"),
         };
-        let parse = |text| parse_maybe_bare(&mut FilesetDiagnostics::new(), text, &path_converter);
+        let parse = |text| parse_maybe_bare(&mut FilesetDiagnostics::new(), text, &path_converter, false);
 
         // cwd-relative, without meta characters
         insta::assert_debug_snapshot!(
@@ -938,7 +970,7 @@ mod tests {
             cwd: PathBuf::from("/ws/cur"),
             base: PathBuf::from("/ws"),
         };
-        let parse = |text| parse_maybe_bare(&mut FilesetDiagnostics::new(), text, &path_converter);
+        let parse = |text| parse_maybe_bare(&mut FilesetDiagnostics::new(), text, &path_converter, false);
 
         // cwd-relative case-insensitive glob
         insta::assert_debug_snapshot!(
@@ -1159,7 +1191,7 @@ mod tests {
             cwd: PathBuf::from("/ws/cur"),
             base: PathBuf::from("/ws"),
         };
-        let parse = |text| parse_maybe_bare(&mut FilesetDiagnostics::new(), text, &path_converter);
+        let parse = |text| parse_maybe_bare(&mut FilesetDiagnostics::new(), text, &path_converter, false);
 
         insta::assert_debug_snapshot!(parse("all()").unwrap(), @"All");
         insta::assert_debug_snapshot!(parse("none()").unwrap(), @"None");
@@ -1187,7 +1219,7 @@ mod tests {
             cwd: PathBuf::from("/ws/cur"),
             base: PathBuf::from("/ws"),
         };
-        let parse = |text| parse_maybe_bare(&mut FilesetDiagnostics::new(), text, &path_converter);
+        let parse = |text| parse_maybe_bare(&mut FilesetDiagnostics::new(), text, &path_converter, false);
 
         insta::assert_debug_snapshot!(parse("~x").unwrap(), @r#"
         Difference(

@@ -476,7 +476,7 @@ impl TreeEntriesDirItem {
                 if matcher.visit(&path).is_nothing() {
                     continue;
                 }
-            } else if !matcher.matches(&path) {
+            } else if !matcher.matches(&path, value.as_normal()) {
                 continue;
             }
             entries.push((path, value.cloned()));
@@ -666,7 +666,7 @@ impl TreeDiffDir {
             // Check if trees and files match, but only if either side is a tree or a file
             // (don't query the matcher unnecessarily).
             let tree_matches = (tree_before || tree_after) && !matcher.visit(&path).is_nothing();
-            let file_matches = (!tree_before || !tree_after) && matcher.matches(&path);
+            let file_matches = (!tree_before || !tree_after) && matcher.matches(&path, diff.after.as_normal());
 
             // Replace trees or files that don't match by `Merge::absent()`
             let before = if (tree_before && tree_matches) || (!tree_before && file_matches) {
@@ -828,7 +828,7 @@ impl<'matcher> TreeDiffStreamImpl<'matcher> {
             // (don't query the matcher unnecessarily).
             let tree_matches =
                 (tree_before || tree_after) && !self.matcher.visit(&path).is_nothing();
-            let file_matches = (!tree_before || !tree_after) && self.matcher.matches(&path);
+            let file_matches = (!tree_before || !tree_after) && self.matcher.matches(&path, diff.after.as_normal());
 
             // Replace trees or files that don't match by `Merge::absent()`
             let before = if (tree_before && tree_matches) || (!tree_before && file_matches) {

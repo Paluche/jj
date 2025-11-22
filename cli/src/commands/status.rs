@@ -71,7 +71,7 @@ pub(crate) fn cmd_status(
         .get_wc_commit_id()
         .map(|id| repo.store().get_commit(id))
         .transpose()?;
-    let fileset_expression = workspace_command.parse_file_patterns(ui, &args.paths)?;
+    let fileset_expression = workspace_command.parse_file_patterns(ui, &args.paths, false)?;
     let matcher = fileset_expression.to_matcher();
     ui.request_pager();
     let mut formatter = ui.stdout_formatter();

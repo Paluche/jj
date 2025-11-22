@@ -214,7 +214,7 @@ impl Iterator for TreeEntriesIterator<'_> {
                         self.stack.push(TreeEntriesDirItem::from(subtree));
                     }
                     value => {
-                        if self.matcher.matches(&path) {
+                        if self.matcher.matches(&path, Some(&&value)) {
                             return Some((path, value));
                         }
                     }

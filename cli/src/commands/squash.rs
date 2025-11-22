@@ -322,7 +322,7 @@ pub(crate) fn cmd_squash(
 
     let fileset_expression = tx
         .base_workspace_helper()
-        .parse_file_patterns(ui, &args.paths)?;
+        .parse_file_patterns(ui, &args.paths, false)?;
     let matcher = fileset_expression.to_matcher();
     let diff_selector =
         tx.base_workspace_helper()

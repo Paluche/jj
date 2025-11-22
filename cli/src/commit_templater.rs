@@ -1373,7 +1373,7 @@ fn expect_fileset_literal(
         let text = template_parser::expect_string_literal(node)?;
         let mut inner_diagnostics = FilesetDiagnostics::new();
         let expression =
-            fileset::parse(&mut inner_diagnostics, text, path_converter).map_err(|err| {
+            fileset::parse(&mut inner_diagnostics, text, path_converter, false).map_err(|err| {
                 TemplateParseError::expression("In fileset expression", node.span).with_source(err)
             })?;
         diagnostics.extend_with(inner_diagnostics, |diag| {
