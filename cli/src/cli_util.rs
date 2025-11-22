@@ -1388,6 +1388,7 @@ to the current parents may contain changes from multiple commits.
         &self,
         ui: &Ui,
         values: &[String],
+        extended_filesets: bool
     ) -> Result<FilesetExpression, CommandError> {
         // TODO: This function might be superseded by parse_union_filesets(),
         // but it would be weird if parse_union_*() had a special case for the
@@ -1395,7 +1396,7 @@ to the current parents may contain changes from multiple commits.
         if values.is_empty() {
             Ok(FilesetExpression::all())
         } else {
-            self.parse_union_filesets(ui, values)
+            self.parse_union_filesets(ui, values, extended_filesets)
         }
     }
 
@@ -1404,17 +1405,18 @@ to the current parents may contain changes from multiple commits.
         &self,
         ui: &Ui,
         file_args: &[String], // TODO: introduce FileArg newtype?
+        extended_filesets: bool,
     ) -> Result<FilesetExpression, CommandError> {
         let mut diagnostics = FilesetDiagnostics::new();
         let expressions: Vec<_> = file_args
             .iter()
-            .map(|arg| fileset::parse_maybe_bare(&mut diagnostics, arg, self.path_converter()))
+            .map(|arg| fileset::parse_maybe_bare(&mut diagnostics, arg, self.path_converter(), extended_filesets))
             .try_collect()?;
         print_parse_diagnostics(ui, "In fileset expression", &diagnostics)?;
         Ok(FilesetExpression::union_all(expressions))
     }
 
-    pub fn auto_tracking_matcher(&self, ui: &Ui) -> Result<Box<dyn Matcher>, CommandError> {
+    pub fn auto_tracking_matcher(&self, ui: &Ui, extended_filesets: bool) -> Result<Box<dyn Matcher>, CommandError> {
         let mut diagnostics = FilesetDiagnostics::new();
         let pattern = self.settings().get_string("snapshot.auto-track")?;
         let expression = fileset::parse(
@@ -1424,6 +1426,7 @@ to the current parents may contain changes from multiple commits.
                 cwd: "".into(),
                 base: "".into(),
             },
+            extended_filesets,
         )?;
         print_parse_diagnostics(ui, "In `snapshot.auto-track`", &diagnostics)?;
         Ok(expression.to_matcher())
