@@ -38,6 +38,11 @@ fn test_status_copies() {
     Working copy  (@) : rlvkpnrz c2fce842 (no description set)
     Parent commit (@-): qpvuntsm ebf799bc (no description set)
     [EOF]
+    ------- stderr -------
+    Auto-tracking 2 new files:
+      copy-target
+      rename-target
+    [EOF]
     ");
 }
 
@@ -100,6 +105,10 @@ fn test_status_ignored_gitignore() {
     Working copy  (@) : qpvuntsm af6b0e75 (no description set)
     Parent commit (@-): zzzzzzzz 00000000 (empty) (no description set)
     [EOF]
+    ------- stderr -------
+    Auto-tracking 1 new file:
+      .gitignore
+    [EOF]
     ");
 }
 
@@ -119,6 +128,11 @@ fn test_status_filtered() {
     A file_1
     Working copy  (@) : qpvuntsm 2f169edb (no description set)
     Parent commit (@-): zzzzzzzz 00000000 (empty) (no description set)
+    [EOF]
+    ------- stderr -------
+    Auto-tracking 2 new files:
+      file_1
+      file_2
     [EOF]
     ");
 

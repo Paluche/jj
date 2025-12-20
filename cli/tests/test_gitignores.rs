@@ -66,6 +66,12 @@ fn test_gitignores() {
     A file0
     A file3
     [EOF]
+    ------- stderr -------
+    Auto-tracking 3 new files:
+      .gitignore
+      file0
+      file3
+    [EOF]
     ");
 }
 
@@ -95,6 +101,10 @@ fn test_gitignores_relative_excludes_file_path() {
     let output = sub_dir.run_jj(["diff", "-s"]);
     insta::assert_snapshot!(output.normalize_backslash(), @r"
     A ../not-ignored
+    [EOF]
+    ------- stderr -------
+    Auto-tracking 1 new file:
+      ../not-ignored
     [EOF]
     ");
     let output = test_env.run_jj_in(".", ["-Rrepo", "diff", "-s"]);

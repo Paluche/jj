@@ -432,8 +432,8 @@ impl CommandHelper {
     /// Loads workspace and repo, then snapshots the working copy if allowed.
     #[instrument(skip(self, ui))]
     pub fn workspace_helper(&self, ui: &Ui) -> Result<WorkspaceCommandHelper, CommandError> {
-        let (workspace_command, stats) = self.workspace_helper_with_stats(ui)?;
-        print_snapshot_stats(ui, &stats, workspace_command.env().path_converter())?;
+        let (workspace_command, _stats) = self.workspace_helper_with_stats(ui)?;
+        //print_snapshot_stats(ui, &stats, workspace_command.env().path_converter())?;
         Ok(workspace_command)
     }
 
@@ -1204,10 +1204,10 @@ impl WorkspaceCommandHelper {
     /// copy is collocated with Git.
     #[instrument(skip_all)]
     pub fn maybe_snapshot(&mut self, ui: &Ui) -> Result<(), CommandError> {
-        let stats = self
+        let _stats = self
             .maybe_snapshot_impl(ui)
             .map_err(|err| err.into_command_error())?;
-        print_snapshot_stats(ui, &stats, self.env().path_converter())?;
+        //print_snapshot_stats(ui, &stats, self.env().path_converter())?;
         Ok(())
     }
 
@@ -1979,6 +1979,8 @@ to the current parents may contain changes from multiple commits.
                 .commit("snapshot working copy")
                 .map_err(snapshot_command_error)?;
             self.user_repo = ReadonlyUserRepo::new(repo);
+
+            let new_tree = commit.tree();
         }
 
         #[cfg(feature = "git")]
@@ -2013,6 +2015,7 @@ to the current parents may contain changes from multiple commits.
         locked_ws
             .finish(self.user_repo.repo.op_id().clone())
             .map_err(snapshot_command_error)?;
+
         Ok(stats)
     }
 
@@ -2917,11 +2920,88 @@ pub fn print_untracked_files(
     Ok(())
 }
 
+pub fn print_newly_tracked_files(
+    ui: &Ui,
+    stats: &SnapshotStats,
+    path_converter: &RepoPathUiConverter,
+    tree: &MergedTree,
+) -> io::Result<()> {
+    // TODO:
+    // - collapse the list of files when they belong to a same directory, see to
+    //   implement something similar to / or reuse
+    //   commands::status::visit_collapsed_untracked_files()
+    // - With the collapsed output, we can fall back to a message displayed
+    // which mimicks the status command output.
+    //  proposed format:
+    // ```
+    // Auto-tracking {nb_total} new files:
+    //     {file_path}
+    //     {dir_path} ({nb_files_in_dir)
+    //     ... and {remaining} other files.
+    // ```
+    // Last line appearing only when the message starts to be too long (~10
+    // lines maximum). Path and numbers of file printed with the diff-added
+    // color (green by default).
+    if stats.newly_tracked_paths.is_empty() {
+        return Ok(());
+    }
+    let Some(mut formatter) = ui.status_formatter() else {
+        return Ok(());
+    };
+
+    write!(formatter, "Auto-tracking ")?;
+    write!(
+        formatter.labeled("diff").labeled("added"),
+        "{}",
+        stats.newly_tracked_paths.len()
+    )?;
+    writeln!(
+        formatter,
+        " new file{}:",
+        if stats.newly_tracked_paths.len() > 1 {
+            "s"
+        } else {
+            ""
+        }
+    )?;
+
+    visit_collapsed_tracked_files(
+        stats.newly_tracked_paths,
+        stats.untracked_paths,
+        stats.ignored_paths,
+        tree,
+        |path, is_dir| {
+            write!(formatter.labeled("diff").labeled("added"), "A ");
+            if let Some(dir_files) = is_dir {
+                writeln!(
+                    formatter.labeled("diff").labeled("added"),
+                    "{} ({} files)",
+                    path.to_internal_dir_string(),
+                    dir_files
+                )?;
+            } else {
+                writeln!(
+                    formatter.labeled("diff").labeled("added"),
+                    "{}",
+                    path.as_internal_file_string()
+                );
+            }
+            Ok(())
+        },
+    )
+    .block_on()
+    .unwrap();
+
+    Ok(())
+}
+
 pub fn print_snapshot_stats(
     ui: &Ui,
     stats: &SnapshotStats,
     path_converter: &RepoPathUiConverter,
+    tree: &MergedTree,
 ) -> io::Result<()> {
+    print_newly_tracked_files(ui, stats, path_converter, tree)?;
     print_untracked_files(ui, &stats.untracked_paths, path_converter)?;
 
     let large_files_sizes = stats
@@ -4308,11 +4388,11 @@ fn warn_if_args_mismatch(
 }
 
 pub async fn visit_collapsed_tracked_files(
-    paths: &[&RepoPath],
-    untracked_files: &[&RepoPath],
-    ignored_paths: &[(&RepoPath, bool)],
+    paths: &[&RepoPathBuf],
+    untracked_files: &[&RepoPathBuf],
+    ignored_paths: &[(&RepoPathBuf, bool)],
     tree: &MergedTree,
-    mut on_path: impl FnMut(&RepoPath, Option<usize>) -> Result<(), CommandError>,
+    mut on_path: impl FnMut(&RepoPathBuf, Option<usize>) -> Result<(), CommandError>,
 ) -> Result<(), CommandError> {
     // We want to collapse several paths from tracked paths into a single
     // common directory paths if:
@@ -4338,13 +4418,14 @@ pub async fn visit_collapsed_tracked_files(
     }
 
     async fn is_collapsable(
-        parent: &RepoPath,
-        paths: Vec<&RepoPath>,
-        untracked_files: &[&RepoPath],
-        ignored_paths: &[(&RepoPath, bool)],
+        parent: &RepoPathBuf,
+        paths: Vec<&RepoPathBuf>,
+        untracked_files: &[&RepoPathBuf],
+        ignored_files: &[&RepoPathBuf],
+        ignored_dirs: &[&RepoPathBuf],
         root_tree: &Merge<Tree>,
     ) -> Result<bool, CommandError> {
-        Ok(if parent == RepoPath::root() {
+        Ok(if parent == &RepoPathBuf::root() {
             // Root cannot be the collapsed directory.
             false
         } else if untracked_files
@@ -4379,12 +4460,23 @@ pub async fn visit_collapsed_tracked_files(
         })
     }
 
+    let ignored_dirs = ignored_paths
+        .iter()
+        .filter_map(|(p, is_dir)| is_dir.then_some(p.into()))
+        .collect();
+
+    let ignored_files = ignored_paths
+        .iter()
+        .filter_map(|(p, is_dir)| (!is_dir).then_some(p))
+        .collect();
+
     while let Some((parent, paths)) = candidates.pop_first() {
         if is_collapsable(
             parent,
             paths.iter().map(|v| v.0).collect(),
             untracked_files,
-            ignored_paths,
+            ignored_files,
+            ignored_dirs,
             &root_tree,
         )
         .await?
