@@ -197,6 +197,7 @@ async fn snapshot_workspace(
     env: &WorkspaceCommandEnvironment,
 ) -> Result<Option<Commit>, CommandError> {
     let repo_loader = workspace.repo_loader().clone();
+    let settings = workspace.settings().clone();
     let mut locked_ws = workspace.start_working_copy_mutation().await?;
     let op_id = locked_ws.locked_wc().old_operation_id();
     let op = repo_loader.load_operation(op_id).await?;
@@ -215,7 +216,13 @@ async fn snapshot_workspace(
         options.progress = progress.as_ref().map(|x| x as _);
         locked_ws.locked_wc().snapshot(&options).await?
     };
-    print_snapshot_result(ui, &snapshot_result, env.path_converter())?;
+    print_snapshot_result(
+        ui,
+        settings.config(),
+        &snapshot_result,
+        env.path_converter(),
+    )
+    .await?;
     let SnapshotResult { new_tree, stats } = snapshot_result;
     if !stats.untracked_paths.is_empty() || !stats.invalid_utf8_paths.is_empty() {
         return Err(user_error(format!(

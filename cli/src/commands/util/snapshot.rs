@@ -90,9 +90,11 @@ pub async fn cmd_util_snapshot(
         command.workspace_helper_with_result(ui).await?;
     print_maybe_snapshot_result(
         ui,
+        command.settings().config(),
         &maybe_snapshot_result,
         workspace_command.env().path_converter(),
-    )?;
+    )
+    .await?;
     if was_snapshot_taken {
         writeln!(ui.status(), "Snapshot complete.")?;
     } else {

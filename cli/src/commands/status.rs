@@ -30,7 +30,7 @@ use tracing::instrument;
 
 use crate::cli_util::CommandHelper;
 use crate::cli_util::print_conflicted_paths;
-use crate::cli_util::print_maybe_snapshot_result;
+use crate::cli_util::print_maybe_snapshot_result_without_newly_tracked;
 use crate::cli_util::print_unmatched_explicit_paths;
 use crate::cli_util::visit_collapsed_untracked_files;
 use crate::command_error::CommandError;
@@ -73,7 +73,7 @@ pub(crate) async fn cmd_status(
 ) -> Result<(), CommandError> {
     let (workspace_command, maybe_snapshot_result, _) =
         command.workspace_helper_with_result(ui).await?;
-    print_maybe_snapshot_result(
+    print_maybe_snapshot_result_without_newly_tracked(
         ui,
         &maybe_snapshot_result,
         workspace_command.env().path_converter(),

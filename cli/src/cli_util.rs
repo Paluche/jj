@@ -471,9 +471,11 @@ impl CommandHelper {
             self.workspace_helper_with_result(ui).await?;
         print_maybe_snapshot_result(
             ui,
+            self.settings().config(),
             &maybe_snapshot_result,
             workspace_command.env().path_converter(),
-        )?;
+        )
+        .await?;
         Ok(workspace_command)
     }
 
@@ -2245,7 +2247,13 @@ impl WorkspaceCommandHelper {
         let maybe_snapshot_result = self
             .snapshot_impl(ui, &config, &git_import_export_lock)
             .await?;
-        print_maybe_snapshot_result(ui, &maybe_snapshot_result, self.env().path_converter())?;
+        print_maybe_snapshot_result(
+            ui,
+            self.settings().config(),
+            &maybe_snapshot_result,
+            self.env().path_converter(),
+        )
+        .await?;
         Ok(())
     }
 
@@ -3650,6 +3658,77 @@ fn build_untracked_reason_message(reason: &UntrackedReason) -> Option<String> {
     }
 }
 
+pub async fn print_newly_tracked(
+    ui: &Ui,
+    config: &StackedConfig,
+    snapshot_result: &SnapshotResult,
+    path_converter: &RepoPathUiConverter,
+) -> Result<(), CommandError> {
+    let show_newly_tracked = config.get::<bool>("ui.show-newly-tracked").unwrap_or(true);
+
+    if !show_newly_tracked {
+        return Ok(());
+    }
+
+    let SnapshotResult { new_tree, stats } = snapshot_result;
+
+    if stats.newly_tracked_paths.is_empty() {
+        return Ok(());
+    }
+
+    let Some(mut formatter) = ui.status_formatter() else {
+        return Ok(());
+    };
+
+    write!(formatter, "Auto-tracking ")?;
+    write!(
+        formatter.labeled("diff").labeled("added"),
+        "{}",
+        stats.newly_tracked_paths.len()
+    )?;
+    writeln!(
+        formatter,
+        " new file{}:",
+        if stats.newly_tracked_paths.len() > 1 {
+            "s"
+        } else {
+            ""
+        }
+    )?;
+
+    visit_collapsed_tracked_files(
+        &stats.newly_tracked_paths,
+        &stats.untracked_paths.keys().collect::<Vec<&RepoPathBuf>>(),
+        &stats
+            .ignored_paths
+            .iter()
+            .map(|(p, is_dir)| (p, *is_dir))
+            .collect::<Vec<(&RepoPathBuf, bool)>>(),
+        new_tree,
+        |path, is_dir| {
+            if let Some(dir_files) = is_dir {
+                write!(
+                    formatter.labeled("diff").labeled("added"),
+                    "A {}{}",
+                    path_converter.format_file_path(path.as_ref()),
+                    std::path::MAIN_SEPARATOR_STR
+                )?;
+                writeln!(formatter, " ({dir_files} files)")?;
+            } else {
+                writeln!(
+                    formatter.labeled("diff").labeled("added"),
+                    "A {}",
+                    path_converter.format_file_path(path.as_ref())
+                )?;
+            }
+            Ok(())
+        },
+    )
+    .await?;
+
+    Ok(())
+}
+
 /// Print a warning to the user, listing untracked files that he may care about
 pub fn print_untracked_files(
     ui: &Ui,
@@ -3706,24 +3785,51 @@ pub fn snapshot_stats_from_maybe_result(
 }
 
 /// Like [`print_snapshot_result`], but does nothing if no snapshot was taken.
-pub fn print_maybe_snapshot_result(
+pub async fn print_maybe_snapshot_result(
+    ui: &Ui,
+    config: &StackedConfig,
+    maybe_result: &Option<SnapshotResult>,
+    path_converter: &RepoPathUiConverter,
+) -> Result<(), CommandError> {
+    if let Some(result) = maybe_result.as_ref() {
+        print_snapshot_result(ui, config, result, path_converter).await
+    } else {
+        Ok(())
+    }
+}
+
+/// Prints the newly tracked paths, the paths the snapshot skipped, and a hint
+/// about large files.
+pub async fn print_snapshot_result(
+    ui: &Ui,
+    config: &StackedConfig,
+    result: &SnapshotResult,
+    path_converter: &RepoPathUiConverter,
+) -> Result<(), CommandError> {
+    print_newly_tracked(ui, config, result, path_converter).await?;
+    print_snapshot_result_without_newly_tracked(ui, result, path_converter)
+}
+
+/// Like [`print_snapshot_result_without_newly_tracked`], but does nothing if
+/// no snapshot was taken.
+pub fn print_maybe_snapshot_result_without_newly_tracked(
     ui: &Ui,
     maybe_result: &Option<SnapshotResult>,
     path_converter: &RepoPathUiConverter,
-) -> io::Result<()> {
+) -> Result<(), CommandError> {
     if let Some(result) = maybe_result.as_ref() {
-        print_snapshot_result(ui, result, path_converter)
+        print_snapshot_result_without_newly_tracked(ui, result, path_converter)
     } else {
         Ok(())
     }
 }
 
 /// Prints the paths the snapshot skipped, and a hint about large files.
-pub fn print_snapshot_result(
+pub fn print_snapshot_result_without_newly_tracked(
     ui: &Ui,
     result: &SnapshotResult,
     path_converter: &RepoPathUiConverter,
-) -> io::Result<()> {
+) -> Result<(), CommandError> {
     let stats = &result.stats;
     print_untracked_files(ui, &stats.untracked_paths, path_converter)?;
     print_invalid_utf8_paths(ui, &stats.invalid_utf8_paths, path_converter)?;
