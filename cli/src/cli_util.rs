@@ -4277,10 +4277,14 @@ mod tests {
         );
     }
 
-    fn collect_collapsed_files_string(paths: &[&RepoPath], tree: &MergedTree) -> String {
+    fn collect_collapsed_files_string(
+        paths: &[&RepoPath],
+        tree: &MergedTree,
+        prefix: &str,
+    ) -> String {
         let mut result = String::new();
         visit_collapsed_files(paths, tree, |path, is_dir| {
-            result.push_str("? ");
+            result.push_str(prefix);
             if is_dir {
                 result.push_str(&path.to_internal_dir_string());
             } else {
@@ -4295,45 +4299,74 @@ mod tests {
     }
 
     #[test]
-    fn test_collapsed_untracked_files() {
+    fn test_collapsed_files() {
         let repo = TestRepo::init();
 
-        let tracked = {
+        let file = &[
+            // (file path, is_tracked)
+            (repo_path("top_level_file"), true),
+            (repo_path("untracked_top_level_file"), false),
+            (repo_path("dir1/a"), false),
+            (repo_path("dir1/b"), false),
+            (repo_path("dir2/c"), true),
+            (repo_path("dir3/partially_tracked/d"), true),
+            (repo_path("dir3/partially_tracked/e"), false),
+            (repo_path("dir3/partially_tracked/f"), false),
+            (repo_path("dir3/fully_untracked/g"), false),
+            (repo_path("dir3/fully_untracked/h"), false),
+            (repo_path("dir3/fully_untracked/i"), false),
+            (repo_path("dir3/fully_untracked/j"), false),
+            (repo_path("dir3/k"), false),
+            (repo_path("dir4/l"), true),
+            (repo_path("dir4/m"), true),
+            (repo_path("dir4/n"), true),
+        ];
+
+        let tree = {
             let mut builder = TestTreeBuilder::new(repo.repo.store().clone());
 
-            builder.file(repo_path("top_level_file"), "");
-            // ? "untracked_top_level_file"
-            // ? "dir"
-            // ? "dir2/c"
-            builder.file(repo_path("dir2/d"), "");
-            // ? "dir3/partially_tracked/e"
-            builder.file(repo_path("dir3/partially_tracked/f"), "");
-            // ? "dir3/fully_untracked/"
-            builder.file(repo_path("dir3/j"), "");
-            // ? "dir3/k"
+            file.iter().for_each(|(repo_path, tracked)| {
+                if *tracked {
+                    builder.file(repo_path, "");
+                }
+            });
 
             builder.write_merged_tree()
         };
-        let untracked = &[
-            repo_path("untracked_top_level_file"),
-            repo_path("dir/a"),
-            repo_path("dir/b"),
-            repo_path("dir2/c"),
-            repo_path("dir3/partially_tracked/e"),
-            repo_path("dir3/fully_untracked/g"),
-            repo_path("dir3/fully_untracked/h"),
-            repo_path("dir3/k"),
-        ];
+
+        // XXX: The untracked files does not exists in the TestRepo...
+
+        let untracked = file
+            .clone()
+            .into_iter()
+            .filter_map(|(repo_path, tracked)| (!tracked).then_some(repo_path))
+            .collect_vec();
 
         insta::assert_snapshot!(
-            collect_collapsed_files_string(untracked, &tracked),
+            collect_collapsed_files_string(&untracked, &tree, "? "),
             @r"
         ? untracked_top_level_file
-        ? dir/
-        ? dir2/c
+        ? dir1/
         ? dir3/partially_tracked/e
+        ? dir3/partially_tracked/f
         ? dir3/fully_untracked/
         ? dir3/k
+        "
+        );
+
+        let tracked = file
+            .clone()
+            .into_iter()
+            .filter_map(|(repo_path, tracked)| tracked.then_some(repo_path))
+            .collect_vec();
+
+        insta::assert_snapshot!(
+        collect_collapsed_files_string(&tracked, &tree, "A "),
+        @r"
+        A top_level_file
+        A dir2/c
+        A dir3/partially_tracked/d
+        A dir4/
         "
         );
     }
