@@ -4831,6 +4831,168 @@ fn insert_ancestors(dirs: &mut HashSet<RepoPathBuf>, path: &RepoPath) {
     }
 }
 
+/// A directory whose content [`visit_collapsed_tracked_files`] is visiting.
+struct TrackedOpenDir {
+    dir: RepoPathBuf,
+    /// Index in the output of the first line produced within `dir`.
+    start: usize,
+    /// Number of visited files within `dir`.
+    files: usize,
+    /// Whether `dir` is an ignored directory or is inside one.
+    in_ignored_dir: bool,
+    /// Whether every child of `dir` closed so far was collapsible.
+    children_collapsed: bool,
+}
+
+/// Whether the entries of `dir` in `tree` are exactly the direct children
+/// represented by `lines`, one line per child.
+async fn tree_dir_has_only(
+    tree: &MergedTree,
+    dir: &RepoPath,
+    lines: &[(RepoPathBuf, Option<usize>)],
+) -> Result<bool, CommandError> {
+    // The union of the names of all the sides of a conflict: a name
+    // present on any side prevents the collapse.
+    let mut names = BTreeSet::new();
+    for value in tree.path_value(dir).await?.iter().flatten() {
+        if let TreeValue::Tree(id) = value {
+            let sub_tree = tree.store().get_tree(dir.to_owned(), id).await?;
+            names.extend(
+                sub_tree
+                    .entries_non_recursive()
+                    .map(|entry| entry.name().to_owned()),
+            );
+        }
+    }
+    let depth = dir.components().count();
+    Ok(names.len() == lines.len()
+        && names
+            .iter()
+            .zip(lines)
+            .all(|(name, (path, _))| path.components().nth(depth) == Some(name.as_ref())))
+}
+
+/// Closes the deepest open directory, replacing its lines by one line for
+/// the directory itself when it is collapsible.
+async fn close_tracked_dir(
+    stack: &mut Vec<TrackedOpenDir>,
+    output: &mut Vec<(RepoPathBuf, Option<usize>)>,
+    blocked_dirs: &HashSet<RepoPathBuf>,
+    tree: &MergedTree,
+) -> Result<(), CommandError> {
+    let closed = stack.pop().expect("the root directory is never closed");
+    let collapsible = closed.children_collapsed
+        && !closed.in_ignored_dir
+        && !blocked_dirs.contains(&closed.dir)
+        && tree_dir_has_only(tree, &closed.dir, &output[closed.start..]).await?;
+    let parent = stack
+        .last_mut()
+        .expect("the root directory is never closed");
+    if collapsible {
+        parent.files += closed.files;
+        if closed.files > 1 {
+            output.truncate(closed.start);
+            output.push((closed.dir, Some(closed.files)));
+        }
+    } else {
+        parent.children_collapsed = false;
+    }
+    Ok(())
+}
+
+/// Visits the newly tracked `paths`, replacing the files of a directory by
+/// the directory itself when they can all be summarised in one line.
+///
+/// `paths` are files sorted in path order. A directory other than the root
+/// is collapsed when every entry it has in `tree` is in `paths` (or in a
+/// collapsed subdirectory), when it contains none of the `untracked_files`
+/// and `ignored_paths` (`(path, is_dir)` pairs) at any depth, and when it is
+/// not inside an ignored directory. A collapsible directory holding a single
+/// file shows that file instead. `on_path` receives each path to show, in
+/// path order, with its number of files when it is a collapsed directory.
+///
+/// # Errors
+///
+/// Returns an error if `tree` cannot be read or if `on_path` fails.
+///
+/// # Panics
+///
+/// Panics if one of `paths` is the root.
+pub async fn visit_collapsed_tracked_files(
+    paths: impl IntoIterator<Item = impl AsRef<RepoPath>>,
+    untracked_files: &[impl AsRef<RepoPath>],
+    ignored_paths: &[(impl AsRef<RepoPath>, bool)],
+    tree: &MergedTree,
+    mut on_path: impl FnMut(&RepoPathBuf, Option<usize>) -> Result<(), CommandError>,
+) -> Result<(), CommandError> {
+    // Directories containing untracked or ignored paths cannot be collapsed.
+    let mut blocked_dirs = HashSet::new();
+    let mut ignored_dirs = HashSet::new();
+    for path in untracked_files {
+        insert_ancestors(&mut blocked_dirs, path.as_ref());
+    }
+    for (path, is_dir) in ignored_paths {
+        insert_ancestors(&mut blocked_dirs, path.as_ref());
+        if *is_dir {
+            ignored_dirs.insert(path.as_ref());
+        }
+    }
+
+    // Lines to show, in path order. Closing a collapsible directory replaces
+    // the lines it produced, which are at the end, by a single one.
+    let mut output: Vec<(RepoPathBuf, Option<usize>)> = vec![];
+    // Directories from the root down to the parent of the last visited file.
+    let mut stack = vec![TrackedOpenDir {
+        dir: RepoPathBuf::root(),
+        start: 0,
+        files: 0,
+        in_ignored_dir: false,
+        children_collapsed: false,
+    }];
+
+    for path in paths {
+        let path = path.as_ref();
+        let parent = path.parent().expect("a file path should not be the root");
+        while stack
+            .last()
+            .is_some_and(|open| !parent.starts_with(&open.dir))
+        {
+            close_tracked_dir(&mut stack, &mut output, &blocked_dirs, tree).await?;
+        }
+        let open = stack.last().expect("the root directory is never closed");
+        let mut in_ignored_dir = open.in_ignored_dir;
+        let new_dirs = parent
+            .ancestors()
+            .collect_vec()
+            .into_iter()
+            .rev()
+            .skip(open.dir.components().count() + 1);
+        for dir in new_dirs {
+            in_ignored_dir |= ignored_dirs.contains(dir);
+            stack.push(TrackedOpenDir {
+                dir: dir.to_owned(),
+                start: output.len(),
+                files: 0,
+                in_ignored_dir,
+                children_collapsed: true,
+            });
+        }
+        output.push((path.to_owned(), None));
+        stack
+            .last_mut()
+            .expect("the root directory is never closed")
+            .files += 1;
+    }
+    while stack.len() > 1 {
+        close_tracked_dir(&mut stack, &mut output, &blocked_dirs, tree).await?;
+    }
+
+    for (path, files) in &output {
+        on_path(path, *files)?;
+    }
+    Ok(())
+}
+
 /// Visits `untracked_paths`, replacing paths by their shallowest directory
 /// that can be shown instead.
 ///
@@ -5077,6 +5239,41 @@ mod tests {
         result
     }
 
+    fn collect_collapsed_tracked_files_string(
+        paths: &[&RepoPath],
+        untracked_paths: &Vec<&RepoPath>,
+        ignored_paths: &[(&RepoPath, bool)],
+        tree: &MergedTree,
+        prefix: &str,
+    ) -> String {
+        let mut result = String::new();
+        visit_collapsed_tracked_files(
+            paths,
+            untracked_paths,
+            ignored_paths,
+            tree,
+            |path, is_dir| {
+                result.push_str(prefix);
+                if let Some(dir_files) = is_dir {
+                    write!(
+                        result,
+                        "{} ({} files)",
+                        path.to_internal_dir_string(),
+                        dir_files
+                    )
+                    .unwrap();
+                } else {
+                    result.push_str(path.as_internal_file_string());
+                }
+                result.push('\n');
+                Ok(())
+            },
+        )
+        .block_on()
+        .unwrap();
+        result
+    }
+
     enum FileState {
         Tracked,
         Untracked,
@@ -5084,7 +5281,7 @@ mod tests {
     }
 
     #[test]
-    fn test_collapsed_untracked_files() {
+    fn test_collapsed_files() {
         let repo = TestRepo::init();
 
         let files = &[
@@ -5181,6 +5378,15 @@ mod tests {
             builder.write_merged_tree()
         };
 
+        let tracked_files = files
+            .iter()
+            .filter_map(|(repo_path, file_state)| {
+                matches!(file_state, FileState::Tracked).then_some(*repo_path)
+            })
+            // Sorted like the newly tracked paths of a snapshot.
+            .sorted()
+            .collect_vec();
+
         let untracked_files = files
             .iter()
             .filter_map(|(repo_path, file_state)| {
@@ -5214,6 +5420,25 @@ mod tests {
         ? dir/fully_untracked/
         ? dir/untracked_ignored/ae
         ? dir/tracked_untracked/aj
+        "
+        );
+
+        insta::assert_snapshot!(
+        collect_collapsed_tracked_files_string(&tracked_files,
+            &untracked_files.into_iter().map(|(p, _)| p).collect(),
+            &ignored_paths, &tree, "A "),
+        @r"
+        A dir/fully_tracked/ (2 files)
+        A dir/partially_tracked/v
+        A dir/tracked/s
+        A dir/tracked_ignored/ag
+        A dir/tracked_untracked/ai
+        A fully_tracked/ (2 files)
+        A partially_tracked/d
+        A top_level_file
+        A tracked/a
+        A tracked_ignored/o
+        A tracked_untracked/q
         "
         );
     }
@@ -5250,6 +5475,57 @@ mod tests {
         ? u/sub/deep/
         ? v/b
         ? w/one/
+        "
+        );
+    }
+
+    #[test]
+    fn test_collapsed_tracked_files_nested() {
+        let repo = TestRepo::init();
+        let new_files = [
+            // Collapsed through two levels.
+            repo_path("n/a/x"),
+            repo_path("n/a/y"),
+            repo_path("n/c"),
+            // `p/z` was already tracked.
+            repo_path("p/x"),
+            repo_path("p/y"),
+            // `q/build` is an ignored directory.
+            repo_path("q/x"),
+            repo_path("q/y"),
+            // Inside the ignored directory `r/build`.
+            repo_path("r/build/x"),
+            repo_path("r/build/y"),
+            // A single file is shown instead of its directories.
+            repo_path("s/t/u"),
+        ];
+        let tree = {
+            let mut builder = TestTreeBuilder::new(repo.repo.store().clone());
+            builder.file(repo_path("p/z"), "");
+            for path in new_files {
+                builder.file(path, "");
+            }
+            builder.write_merged_tree()
+        };
+        let ignored_paths = [(repo_path("q/build"), true), (repo_path("r/build"), true)];
+
+        insta::assert_snapshot!(
+            collect_collapsed_tracked_files_string(
+                &new_files,
+                &Vec::new(),
+                &ignored_paths,
+                &tree,
+                "A ",
+            ),
+            @r"
+        A n/ (3 files)
+        A p/x
+        A p/y
+        A q/x
+        A q/y
+        A r/build/x
+        A r/build/y
+        A s/t/u
         "
         );
     }
