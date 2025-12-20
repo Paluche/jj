@@ -111,6 +111,11 @@ Make sure they're ignored, then try again.",
     let repo = tx.commit("untrack paths")?;
     locked_ws.finish(repo.op_id().clone())?;
     print_unmatched_explicit_paths(ui, &workspace_command, &fileset_expression, [&wc_tree])?;
-    print_snapshot_stats(ui, &stats, workspace_command.env().path_converter())?;
+    print_snapshot_stats(
+        ui,
+        &stats,
+        workspace_command.env().path_converter(),
+        &wc_tree,
+    )?;
     Ok(())
 }
