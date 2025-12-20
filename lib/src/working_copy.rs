@@ -238,6 +238,9 @@ pub struct SnapshotStats {
     /// as (directory, file name) pairs. These paths cannot be represented as
     /// `RepoPath`s.
     pub invalid_utf8_paths: BTreeSet<(RepoPathBuf, OsString)>,
+    /// List of ignored paths, the boolean representing if the path is a
+    /// directory.
+    pub ignored_paths: BTreeMap<RepoPathBuf, bool>,
 }
 
 /// Reason why the new path isn't tracked.
