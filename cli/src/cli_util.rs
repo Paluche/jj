@@ -4819,7 +4819,7 @@ pub fn shell_quote(s: &str) -> Cow<'_, str> {
 
 pub async fn visit_collapsed_untracked_files(
     untracked_paths: impl IntoIterator<Item = impl AsRef<RepoPath>>,
-    tree: MergedTree,
+    tree: &MergedTree,
     mut on_path: impl FnMut(&RepoPath, bool) -> Result<(), CommandError>,
 ) -> Result<(), CommandError> {
     // Directories known to exist in the tree, starting from the top. Each
@@ -4990,7 +4990,7 @@ mod tests {
 
     fn collect_collapsed_untracked_files_string(
         untracked_paths: &[&RepoPath],
-        tree: MergedTree,
+        tree: &MergedTree,
     ) -> String {
         let mut result = String::new();
         visit_collapsed_untracked_files(untracked_paths, tree, |path, is_dir| {
@@ -5040,7 +5040,7 @@ mod tests {
         ];
 
         insta::assert_snapshot!(
-            collect_collapsed_untracked_files_string(untracked, tracked),
+            collect_collapsed_untracked_files_string(untracked, &tracked),
             @"
         ? untracked_top_level_file
         ? dir/
