@@ -256,6 +256,8 @@ pub enum UntrackedReason {
     },
     /// File does not match the fileset specified in snapshot.auto-track.
     FileNotAutoTracked,
+    /// File ignored.
+    FileIgnored,
 }
 
 /// Stats about a checkout operation on a working copy. All "files" mentioned

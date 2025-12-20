@@ -1593,8 +1593,10 @@ impl FileSnapshotter<'_> {
                 && (git_ignore.matches(path.as_internal_file_string())
                     && !self.force_tracking_matcher.matches(&path))
             {
-                // If it wasn't already tracked and it matches
-                // the ignored paths, then ignore it.
+                // If it wasn't already tracked and it matches the ignored paths.
+                self.untracked_paths_tx
+                    .send((path, UntrackedReason::FileIgnored))
+                    .ok();
                 Ok(None)
             } else if maybe_current_file_state.is_none()
                 && !self.start_tracking_matcher.matches(&path)

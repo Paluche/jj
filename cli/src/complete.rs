@@ -987,6 +987,7 @@ pub fn modified_revision_or_range_files(current: &std::ffi::OsStr) -> Vec<Comple
 
 pub fn modified_changes_in_or_range_files(current: &std::ffi::OsStr) -> Vec<CompletionCandidate> {
     if let Some(rev) = parse::changes_in() {
+        eprintln!("modified_changes_in_or_range_files => modified_files_from_rev");
         return modified_files_from_rev((rev, None), current);
     }
     modified_range_files(current)
