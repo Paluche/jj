@@ -4175,7 +4175,7 @@ fn warn_if_args_mismatch(
 
 pub async fn visit_collapsed_files(
     paths: impl IntoIterator<Item = impl AsRef<RepoPath>>,
-    tree: MergedTree,
+    tree: &MergedTree,
     mut on_path: impl FnMut(&RepoPath, bool) -> Result<(), CommandError>,
 ) -> Result<(), CommandError> {
     let trees = tree.trees()?;
@@ -4277,7 +4277,7 @@ mod tests {
         );
     }
 
-    fn collect_collapsed_files_string(paths: &[&RepoPath], tree: MergedTree) -> String {
+    fn collect_collapsed_files_string(paths: &[&RepoPath], tree: &MergedTree) -> String {
         let mut result = String::new();
         visit_collapsed_files(paths, tree, |path, is_dir| {
             result.push_str("? ");
@@ -4326,7 +4326,7 @@ mod tests {
         ];
 
         insta::assert_snapshot!(
-            collect_collapsed_files_string(untracked, tracked),
+            collect_collapsed_files_string(untracked, &tracked),
             @r"
         ? untracked_top_level_file
         ? dir/
