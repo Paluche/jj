@@ -19,12 +19,13 @@ use jj_lib::commit::Commit;
 use jj_lib::git::GitSubprocessOptions;
 use jj_lib::ref_name::WorkspaceNameBuf;
 use jj_lib::repo::Repo as _;
+use jj_lib::working_copy::SnapshotResult;
 use jj_lib::workspace::Workspace;
 use tracing::instrument;
 
 use crate::cli_util::CommandHelper;
 use crate::cli_util::WorkspaceCommandEnvironment;
-use crate::cli_util::print_snapshot_stats;
+use crate::cli_util::print_snapshot_result;
 use crate::command_error::CommandError;
 use crate::command_error::print_error_sources;
 use crate::command_error::user_error;
@@ -206,7 +207,7 @@ async fn snapshot_workspace(
     };
 
     let wc_commit = repo.store().get_commit_async(wc_commit_id).await?;
-    let (new_tree, stats) = {
+    let snapshot_result = {
         let matcher = env.auto_tracking_matcher(ui)?;
         let mut options =
             env.snapshot_options_with_start_tracking_matcher(repo.store(), &matcher)?;
@@ -214,7 +215,8 @@ async fn snapshot_workspace(
         options.progress = progress.as_ref().map(|x| x as _);
         locked_ws.locked_wc().snapshot(&options).await?
     };
-    print_snapshot_stats(ui, &stats, env.path_converter())?;
+    print_snapshot_result(ui, &snapshot_result, env.path_converter())?;
+    let SnapshotResult { new_tree, stats } = snapshot_result;
     if !stats.untracked_paths.is_empty() || !stats.invalid_utf8_paths.is_empty() {
         return Err(user_error(format!(
             "Cannot remove workspace '{name}' with unsnapshotted changes",

@@ -108,6 +108,7 @@ use jj_working_copy::working_copy::ResetError;
 use jj_working_copy::working_copy::SnapshotError;
 use jj_working_copy::working_copy::SnapshotOptions;
 use jj_working_copy::working_copy::SnapshotProgress;
+use jj_working_copy::working_copy::SnapshotResult;
 use jj_working_copy::working_copy::SnapshotStats;
 use jj_working_copy::working_copy::UntrackedReason;
 use jj_working_copy::working_copy::WorkingCopy;
@@ -3090,11 +3091,14 @@ impl LockedWorkingCopy for LockedLocalWorkingCopy {
     async fn snapshot(
         &mut self,
         options: &SnapshotOptions,
-    ) -> Result<(MergedTree, SnapshotStats), SnapshotError> {
+    ) -> Result<SnapshotResult, SnapshotError> {
         let tree_state = self.wc.tree_state_mut()?;
         let (is_dirty, stats) = tree_state.snapshot(options).await?;
         self.tree_state_dirty |= is_dirty;
-        Ok((tree_state.current_tree().clone(), stats))
+        Ok(SnapshotResult {
+            new_tree: tree_state.current_tree().clone(),
+            stats,
+        })
     }
 
     async fn check_out(&mut self, commit: &Commit) -> Result<CheckoutStats, CheckoutError> {

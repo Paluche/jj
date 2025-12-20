@@ -85,7 +85,7 @@ use jj_simple_stores::simple_backend::SimpleBackend;
 use jj_working_copy::gitignore::GitIgnoreFile;
 use jj_working_copy::working_copy::SnapshotError;
 use jj_working_copy::working_copy::SnapshotOptions;
-use jj_working_copy::working_copy::SnapshotStats;
+use jj_working_copy::working_copy::SnapshotResult;
 use pollster::FutureExt as _;
 use tempfile::TempDir;
 
@@ -458,25 +458,25 @@ impl TestWorkspace {
     pub fn snapshot_with_options(
         &mut self,
         options: &SnapshotOptions,
-    ) -> Result<(MergedTree, SnapshotStats), SnapshotError> {
+    ) -> Result<SnapshotResult, SnapshotError> {
         let mut locked_ws = self
             .workspace
             .start_working_copy_mutation()
             .block_on()
             .unwrap();
-        let (tree, stats) = locked_ws.locked_wc().snapshot(options).block_on()?;
+        let result = locked_ws.locked_wc().snapshot(options).block_on()?;
         // arbitrary operation id
         locked_ws
             .finish(self.repo.op_id().clone())
             .block_on()
             .unwrap();
-        Ok((tree, stats))
+        Ok(result)
     }
 
     /// Like `snapshot_with_option()` but with default options
     pub fn snapshot(&mut self) -> Result<MergedTree, SnapshotError> {
-        let (tree, _stats) = self.snapshot_with_options(&empty_snapshot_options())?;
-        Ok(tree)
+        self.snapshot_with_options(&empty_snapshot_options())
+            .map(|r| r.new_tree)
     }
 }
 

@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use crate::cli_util::CommandHelper;
-use crate::cli_util::print_snapshot_stats;
+use crate::cli_util::print_maybe_snapshot_result;
 use crate::command_error::CommandError;
 use crate::ui::Ui;
 
@@ -86,9 +86,13 @@ pub async fn cmd_util_snapshot(
     command: &CommandHelper,
     _args: &UtilSnapshotArgs,
 ) -> Result<(), CommandError> {
-    let (workspace_command, stats, was_snapshot_taken) =
-        command.workspace_helper_with_stats(ui).await?;
-    print_snapshot_stats(ui, &stats, workspace_command.env().path_converter())?;
+    let (workspace_command, maybe_snapshot_result, was_snapshot_taken) =
+        command.workspace_helper_with_result(ui).await?;
+    print_maybe_snapshot_result(
+        ui,
+        &maybe_snapshot_result,
+        workspace_command.env().path_converter(),
+    )?;
     if was_snapshot_taken {
         writeln!(ui.status(), "Snapshot complete.")?;
     } else {
