@@ -741,12 +741,14 @@ impl CommandHelper {
                     let SnapshotStats {
                         mut untracked_paths,
                         mut invalid_utf8_paths,
+                        ignored_paths,
                     } = stale_stats;
                     untracked_paths.extend(fresh_stats.untracked_paths);
                     invalid_utf8_paths.extend(fresh_stats.invalid_utf8_paths);
                     SnapshotStats {
                         untracked_paths,
                         invalid_utf8_paths,
+                        ignored_paths,
                     }
                 };
                 Ok((workspace_command, merged_stats))
