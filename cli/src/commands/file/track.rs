@@ -111,7 +111,7 @@ pub fn print_track_snapshot_stats(
         .iter()
         .filter_map(|(path, reason)| match reason {
             UntrackedReason::FileTooLarge { size, .. } => Some((path, *size)),
-            UntrackedReason::FileNotAutoTracked | UntrackedReason::FileIgnored => None,
+            UntrackedReason::FileNotAutoTracked => None,
         })
         .unzip();
     if let Some(size) = sizes.iter().max() {

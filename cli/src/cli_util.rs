@@ -628,11 +628,13 @@ impl CommandHelper {
                 let merged_stats = {
                     let SnapshotStats {
                         mut untracked_paths,
+                        ignored_paths,
                         newly_tracked_paths,
                     } = stale_stats;
                     untracked_paths.extend(fresh_stats.untracked_paths);
                     SnapshotStats {
                         untracked_paths,
+                        ignored_paths,
                         newly_tracked_paths,
                     }
                 };
@@ -2884,7 +2886,7 @@ fn build_untracked_reason_message(reason: &UntrackedReason) -> Option<String> {
         // Paths with UntrackedReason::FileNotAutoTracked shouldn't be warned about
         // every time we make a snapshot. These paths will be printed by
         // "jj status" instead.
-        UntrackedReason::FileNotAutoTracked | UntrackedReason::FileIgnored => None,
+        UntrackedReason::FileNotAutoTracked => None,
     }
 }
 
@@ -2923,7 +2925,7 @@ pub fn print_snapshot_stats(
         .values()
         .filter_map(|reason| match reason {
             UntrackedReason::FileTooLarge { size, .. } => Some(size),
-            UntrackedReason::FileNotAutoTracked | UntrackedReason::FileIgnored => None,
+            UntrackedReason::FileNotAutoTracked => None,
         });
     if let Some(size) = large_files_sizes.max() {
         writedoc!(
