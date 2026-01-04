@@ -50,6 +50,9 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 * `jj tag list` can now be filtered by revset.
 
+* New option `--ignored` for `jj status` to have the list of ignored path
+  currently in the working copy printed.
+
 ### Fixed bugs
 
 * `jj git init --colocate` now refuses to run inside a Git worktree, providing
