@@ -16,6 +16,9 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### New features
 
+* New option `--ignored` for `jj status` to have the list of ignored path
+  currently in the working copy printed.
+
 ### Fixed bugs
 
 ## [0.46.0] - 2026-10-07
@@ -115,6 +118,9 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 * The hunk headers of `diff.color-words.conflict = "pair"` now include the
   conflict labels of the compared terms.
+
+* Added commands `jj file edit` and `jj file delete` for editing files in any
+  revision without needing to change the working copy.
 
 ### Fixed bugs
 
