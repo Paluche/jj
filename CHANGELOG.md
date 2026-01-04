@@ -78,6 +78,9 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 * `ui.editor` now supports `$path` and `$line` substitution variables. Example:
   `ui.editor = ["emacs", "+$line", "$path"]`
 
+* New option `--ignored` for `jj status` to have the list of ignored path
+  currently in the working copy printed.
+
 ### Fixed bugs
 
 * On Windows, `jj` no longer hangs when a subprocess needs to prompt the user,
