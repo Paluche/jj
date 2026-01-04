@@ -59,6 +59,9 @@ pub(crate) struct StatusArgs {
     /// Restrict the status display to these paths
     #[arg(value_name = "FILESETS", value_hint = clap::ValueHint::AnyPath)]
     paths: Vec<String>,
+    /// Show ignored files as well.
+    #[arg(short, long, action = clap::ArgAction::SetTrue)]
+    ignored: bool,
 }
 
 #[instrument(skip_all)]
@@ -139,6 +142,29 @@ pub(crate) async fn cmd_status(
                 )
                 .await?;
             }
+        }
+
+        if args.ignored && status.has_any_ignored_paths() {
+            writeln!(formatter, "Ignored paths:")?;
+            visit_collapsed_untracked_files(
+                status.ignored_paths(),
+                status.untracked_paths(),
+                &status.tree,
+                |path, is_dir| {
+                    let ui_path = workspace_command.path_converter().format_file_path(path);
+                    writeln!(
+                        formatter.labeled("diff").labeled("ignored"),
+                        "! {ui_path}{}",
+                        if is_dir {
+                            std::path::MAIN_SEPARATOR_STR
+                        } else {
+                            ""
+                        }
+                    )?;
+                    Ok(())
+                },
+            )
+            .await?;
         }
 
         let template = workspace_command.commit_summary_template();
@@ -259,12 +285,19 @@ impl WorkingCopyStatus {
         !self.snapshot_stats.untracked_paths.is_empty()
     }
 
-    fn untracked_paths_matching(&self, matcher: &dyn Matcher) -> impl Iterator<Item = &RepoPath> {
+    fn untracked_paths(&self) -> impl Iterator<Item = &RepoPath> {
         self.snapshot_stats
             .untracked_paths
             .keys()
-            .filter(|path| matcher.matches(path))
-            .map(|path| path.as_ref())
+            .map(AsRef::as_ref)
+    }
+
+    fn untracked_paths_matching(&self, matcher: &dyn Matcher) -> impl Iterator<Item = &RepoPath> {
+        self.untracked_paths().filter(|path| matcher.matches(path))
+    }
+
+    fn has_any_ignored_paths(&self) -> bool {
+        !self.snapshot_stats.ignored_paths.is_empty()
     }
 
     fn ignored_paths(&self) -> impl Iterator<Item = (&RepoPath, bool)> {

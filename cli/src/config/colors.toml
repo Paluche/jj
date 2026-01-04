@@ -94,6 +94,7 @@
 "diff token" = { underline = true }
 "diff modified" = "cyan"
 "diff untracked" = "magenta"
+"diff ignored" = "magenta"
 "diff renamed" = "cyan"
 "diff copied" = "green"
 "diff access-denied" = { bg = "red" }
@@ -104,7 +105,7 @@
 "operation attributes" = "magenta"
 "operation current_operation" = { bold = true }
 "operation current_operation id" = "bright blue"
-"operation current_operation user" = "yellow"                    # No bright yellow, see comment above
+"operation current_operation user" = "yellow"               # No bright yellow, see comment above
 "operation current_operation time" = "bright cyan"
 "operation current_operation attributes" = "bright magenta"
 
