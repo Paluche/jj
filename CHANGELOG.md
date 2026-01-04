@@ -55,6 +55,9 @@ and this project adheres to
 * `jj config gc` now also cleans up workspace configs whose paths no longer
   exist.
 
+* New option `--ignored` for `jj status` to have the list of ignored path
+  currently in the working copy printed.
+
 ### Fixed bugs
 
 * Date patterns such as `after:"2024-03-10 03:30"` are now resolved with the
@@ -180,6 +183,9 @@ and this project adheres to
 
 * The hunk headers of `diff.color-words.conflict = "pair"` now include the
   conflict labels of the compared terms.
+
+* Added commands `jj file edit` and `jj file delete` for editing files in any
+  revision without needing to change the working copy.
 
 ### Fixed bugs
 
