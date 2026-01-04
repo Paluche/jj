@@ -22,6 +22,9 @@ and this project adheres to
   file with conflict markers in your text editor. Unlike the other merge tools,
   it supports conflicts with more than two sides.
 
+* New option `--ignored` for `jj status` to have the list of ignored path
+  currently in the working copy printed.
+
 ### Fixed bugs
 
 * Shell completion now suggests tag names for `jj tag track`, `jj tag untrack`,
@@ -135,6 +138,9 @@ and this project adheres to
 
 * The hunk headers of `diff.color-words.conflict = "pair"` now include the
   conflict labels of the compared terms.
+
+* Added commands `jj file edit` and `jj file delete` for editing files in any
+  revision without needing to change the working copy.
 
 ### Fixed bugs
 
