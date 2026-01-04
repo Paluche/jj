@@ -1289,6 +1289,7 @@ impl TreeState {
         let (tree_entries_tx, tree_entries_rx) = channel();
         let (file_states_tx, file_states_rx) = channel();
         let (untracked_paths_tx, untracked_paths_rx) = channel();
+        let (ignored_paths_tx, ignored_paths_rx) = channel();
         let (deleted_files_tx, deleted_files_rx) = channel();
 
         trace_span!("traverse filesystem").in_scope(|| -> Result<(), SnapshotError> {
@@ -1302,6 +1303,7 @@ impl TreeState {
                 tree_entries_tx,
                 file_states_tx,
                 untracked_paths_tx,
+                ignored_paths_tx,
                 deleted_files_tx,
                 error: OnceLock::new(),
                 progress,
@@ -1356,8 +1358,9 @@ impl TreeState {
             );
         });
         let stats = SnapshotStats {
-            newly_tracked_paths,
             untracked_paths: untracked_paths_rx.into_iter().collect(),
+            ignored_paths: ignored_paths_rx.into_iter().collect(),
+            newly_tracked_paths,
         };
         trace_span!("write tree").in_scope(|| -> Result<(), BackendError> {
             let new_tree = tree_builder.write_tree()?;
@@ -1461,6 +1464,7 @@ struct FileSnapshotter<'a> {
     tree_entries_tx: Sender<(RepoPathBuf, MergedTreeValue)>,
     file_states_tx: Sender<(RepoPathBuf, FileState, bool)>,
     untracked_paths_tx: Sender<(RepoPathBuf, UntrackedReason)>,
+    ignored_paths_tx: Sender<RepoPathBuf>,
     deleted_files_tx: Sender<RepoPathBuf>,
     error: OnceLock<SnapshotError>,
     progress: Option<&'a SnapshotProgress<'a>>,
@@ -1584,6 +1588,7 @@ impl FileSnapshotter<'_> {
                 // ignored directory must be ignored. It's also more efficient.
                 // start_tracking_matcher is NOT tested here because we need to
                 // scan directory entries to report untracked paths.
+                self.ignored_paths_tx.send(path).ok();
                 self.spawn_ok(scope, move |_| self.visit_tracked_files(file_states));
             } else if !self.matcher.visit(&path).is_nothing() {
                 let directory_to_visit = DirectoryToVisit {
@@ -1608,9 +1613,7 @@ impl FileSnapshotter<'_> {
                     && !self.force_tracking_matcher.matches(&path))
             {
                 // If it wasn't already tracked and it matches the ignored paths.
-                self.untracked_paths_tx
-                    .send((path, UntrackedReason::FileIgnored))
-                    .ok();
+                self.ignored_paths_tx.send(path).ok();
                 Ok(None)
             } else if maybe_current_file_state.is_none()
                 && !self.start_tracking_matcher.matches(&path)

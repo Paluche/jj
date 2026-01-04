@@ -240,6 +240,8 @@ pub type SnapshotProgress<'a> = dyn Fn(&RepoPath) + 'a + Sync;
 pub struct SnapshotStats {
     /// List of new (previously untracked) files which are still untracked.
     pub untracked_paths: BTreeMap<RepoPathBuf, UntrackedReason>,
+    /// List of ignored files
+    pub ignored_paths: Vec<RepoPathBuf>,
     /// List of new tracked files.
     pub newly_tracked_paths: Vec<RepoPathBuf>,
 }
@@ -256,8 +258,6 @@ pub enum UntrackedReason {
     },
     /// File does not match the fileset specified in snapshot.auto-track.
     FileNotAutoTracked,
-    /// File ignored.
-    FileIgnored,
 }
 
 /// Stats about a checkout operation on a working copy. All "files" mentioned
