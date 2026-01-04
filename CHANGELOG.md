@@ -46,10 +46,15 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 * Added `jj util backend name` command that prints the backend being used in the
   current repo.
 
+<<<<<<< conflict 1 of 1
++++++++ xqtzytvx fe00a2e0 "cli: Take into account ignored file while visiting collapsed paths" (rebase destination)
 * Added `edit-invocation-mode` config option for diff editors (e.g.
   `jj diffedit`, `jj split`). When set to `"file-by-file"`, the editor is
   launched once per changed file, making it possible to use per-file tools like
   `vimdiff` for editing.
+
+* New option `--ignored` for `jj status` to have the list of ignored path
+  currently in the working copy printed.
 
 ### Fixed bugs
 
