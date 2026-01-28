@@ -5,6 +5,7 @@ use std::time::Instant;
 
 use crossterm::terminal::Clear;
 use crossterm::terminal::ClearType;
+use jj_lib::backend::CommitId;
 use jj_lib::repo_path::RepoPath;
 
 use crate::text_util;
@@ -48,7 +49,7 @@ impl<'a> Progress<'a> {
             self.guard = Some(
                 self.output
                     .output_guard(format!("\r{}", Clear(ClearType::CurrentLine))),
-            )
+            );
         }
 
         let line_width = self.output.term_width().map(usize::from).unwrap_or(80);
@@ -78,4 +79,14 @@ pub fn snapshot_progress(ui: &Ui) -> Option<impl Fn(&RepoPath) + use<>> {
             .unwrap()
             .display(path.to_fs_path_unchecked(Path::new("")).to_str().unwrap());
     })
+}
+
+pub fn git_signing_progress(ui: &Ui) -> Box<dyn Fn(&CommitId)> {
+    if let Some(progress) = Progress::new(ui, "Signing").map(Mutex::new) {
+        Box::new(move |commit_id: &CommitId| {
+            progress.lock().unwrap().display(&format!("{commit_id}"));
+        })
+    } else {
+        Box::new(|_: &CommitId| {})
+    }
 }

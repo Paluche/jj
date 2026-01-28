@@ -79,6 +79,9 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 * New `remote_tags()` revset function to query remote tags.
 
+* Show progress when the operation of signing commits prior to push starts to
+  take long.
+
 ### Fixed bugs
 
 * `jj git init --colocate` now refuses to run inside a Git worktree, providing
