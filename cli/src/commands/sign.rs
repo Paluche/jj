@@ -28,6 +28,7 @@ use crate::cli_util::print_updated_commits;
 use crate::command_error::CommandError;
 use crate::command_error::user_error;
 use crate::complete;
+use crate::progress::ProgressWriter;
 use crate::ui::Ui;
 
 /// Cryptographically sign a revision
@@ -90,6 +91,7 @@ pub fn cmd_sign(ui: &mut Ui, command: &CommandHelper, args: &SignArgs) -> Result
 
     let mut signed_commits = vec![];
     let mut num_reparented = 0;
+    let mut progress_writer = ProgressWriter::new(ui, "Signing");
 
     tx.repo_mut()
         .transform_descendants(
@@ -97,7 +99,9 @@ pub fn cmd_sign(ui: &mut Ui, command: &CommandHelper, args: &SignArgs) -> Result
             async |rewriter| {
                 let old_commit = rewriter.old_commit().clone();
                 let mut commit_builder = rewriter.reparent();
-
+                if let Some(writer) = &mut progress_writer {
+                    writer.display(&old_commit.change_id().reverse_hex()).ok();
+                }
                 if to_sign.contains(&old_commit) {
                     if let Some(key) = &args.key {
                         commit_builder = commit_builder.set_sign_key(key.clone());
