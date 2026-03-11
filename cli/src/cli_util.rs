@@ -15,6 +15,7 @@
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
+use std::collections::HashSet;
 use std::env;
 use std::ffi::OsString;
 use std::fmt;
@@ -4817,53 +4818,113 @@ pub fn shell_quote(s: &str) -> Cow<'_, str> {
     shlex::try_quote(s).unwrap_or(s.into())
 }
 
+/// Inserts every strict ancestor of `path` into `dirs`, the root excluded.
+///
+/// Stops at the first ancestor already present: its own ancestors were
+/// inserted with it, so building the set costs one insertion per distinct
+/// directory.
+fn insert_ancestors(dirs: &mut HashSet<RepoPathBuf>, path: &RepoPath) {
+    for dir in path.ancestors().skip(1) {
+        if dir.is_root() || !dirs.insert(dir.to_owned()) {
+            break;
+        }
+    }
+}
+
+/// Visits `untracked_paths`, replacing paths by their shallowest directory
+/// that can be shown instead.
+///
+/// `untracked_paths` are `(path, is_dir)` pairs, sorted in path order. A
+/// directory is reported instead of its content when it does not exist in
+/// `tree` and contains none of the `other_non_tracked_paths`, at any depth.
+/// `on_path` receives each path to show and whether it is a directory.
+///
+/// # Errors
+///
+/// Returns an error if `tree` cannot be read or if `on_path` fails.
+///
+/// # Panics
+///
+/// Panics if one of `untracked_paths` is the root.
 pub async fn visit_collapsed_untracked_files(
-    untracked_paths: impl IntoIterator<Item = impl AsRef<RepoPath>>,
+    untracked_paths: impl IntoIterator<Item = (impl AsRef<RepoPath>, bool)>,
+    other_non_tracked_paths: impl IntoIterator<Item = impl AsRef<RepoPath>>,
     tree: &MergedTree,
     mut on_path: impl FnMut(&RepoPath, bool) -> Result<(), CommandError>,
 ) -> Result<(), CommandError> {
     // Directories known to exist in the tree, starting from the top. Each
     // directory is the parent of the next one.
     let mut existing_dirs: Vec<RepoPathBuf> = vec![];
+    // Last directory found missing from the tree, all of whose ancestors are
+    // in `existing_dirs`. Sorted input lets it skip tree lookups for the
+    // following paths within it.
+    let mut missing_dir: Option<RepoPathBuf> = None;
+
+    // Directories containing other non tracked paths cannot be collapsed.
+    let mut blocked_dirs = HashSet::new();
+    for path in other_non_tracked_paths {
+        insert_ancestors(&mut blocked_dirs, path.as_ref());
+    }
 
     let mut skip_prefixed_by_dir: Option<RepoPathBuf> = None;
-    'untracked: for path in untracked_paths {
+    for (path, is_dir) in untracked_paths {
         let path = path.as_ref();
         if skip_prefixed_by_dir
             .as_ref()
             .is_some_and(|p| path.starts_with(p))
         {
             continue;
-        } else {
-            skip_prefixed_by_dir = None;
         }
+        skip_prefixed_by_dir = None;
 
         let parent = path
             .parent()
             .expect("untracked path should not be the root");
-        while existing_dirs
-            .last()
-            .is_some_and(|dir| !parent.starts_with(dir))
+
+        if !missing_dir
+            .as_ref()
+            .is_some_and(|dir| parent.starts_with(dir))
         {
-            existing_dirs.pop();
-        }
-        let unknown_dirs = parent
-            .ancestors()
-            .collect_vec()
-            .into_iter()
-            .rev()
-            .skip(1 + existing_dirs.len());
-        for dir in unknown_dirs {
-            if tree.has_dir(dir).await? {
-                existing_dirs.push(dir.to_owned());
-            } else {
-                on_path(dir, true)?;
-                skip_prefixed_by_dir = Some(dir.to_owned());
-                continue 'untracked;
+            missing_dir = None;
+            while existing_dirs
+                .last()
+                .is_some_and(|dir| !parent.starts_with(dir))
+            {
+                existing_dirs.pop();
+            }
+            let unknown_dirs = parent
+                .ancestors()
+                .collect_vec()
+                .into_iter()
+                .rev()
+                .skip(1 + existing_dirs.len());
+            for dir in unknown_dirs {
+                if tree.has_dir(dir).await? {
+                    existing_dirs.push(dir.to_owned());
+                } else {
+                    missing_dir = Some(dir.to_owned());
+                    break;
+                }
             }
         }
 
-        on_path(path, false)?;
+        // Every directory from `missing_dir` down to `parent` is missing from
+        // the tree: show the shallowest one that is not blocked.
+        let collapsed_dir = missing_dir.as_ref().and_then(|missing_dir| {
+            parent
+                .ancestors()
+                .collect_vec()
+                .into_iter()
+                .rev()
+                .skip(missing_dir.components().count())
+                .find(|dir| !blocked_dirs.contains(*dir))
+        });
+        if let Some(dir) = collapsed_dir {
+            on_path(dir, true)?;
+            skip_prefixed_by_dir = Some(dir.to_owned());
+        } else {
+            on_path(path, is_dir)?;
+        }
     }
 
     Ok(())
@@ -4991,20 +5052,26 @@ mod tests {
     }
 
     fn collect_collapsed_untracked_files_string(
-        untracked_paths: &[&RepoPath],
+        untracked_paths: &Vec<(&RepoPath, bool)>,
+        other_non_tracked_paths: &Vec<&RepoPath>,
         tree: &MergedTree,
     ) -> String {
         let mut result = String::new();
-        visit_collapsed_untracked_files(untracked_paths, tree, |path, is_dir| {
-            result.push_str("? ");
-            if is_dir {
-                result.push_str(&path.to_internal_dir_string());
-            } else {
-                result.push_str(path.as_internal_file_string());
-            }
-            result.push('\n');
-            Ok(())
-        })
+        visit_collapsed_untracked_files(
+            untracked_paths.iter().copied(),
+            other_non_tracked_paths,
+            tree,
+            |path, is_dir| {
+                result.push_str("? ");
+                if is_dir {
+                    result.push_str(&path.to_internal_dir_string());
+                } else {
+                    result.push_str(path.as_internal_file_string());
+                }
+                result.push('\n');
+                Ok(())
+            },
+        )
         .block_on()
         .unwrap();
         result
@@ -5087,6 +5154,7 @@ mod tests {
             (repo_path("dir/tracked_untracked/ai"), FileState::Tracked),
             (repo_path("dir/tracked_untracked/aj"), FileState::Untracked),
         ];
+        let ignored_dir = [repo_path("fully_ignored"), repo_path("dir/fully_ignored")];
 
         let tree = {
             let mut builder = TestTreeBuilder::new(repo.repo.store().clone());
@@ -5116,26 +5184,72 @@ mod tests {
         let untracked_files = files
             .iter()
             .filter_map(|(repo_path, file_state)| {
-                matches!(file_state, FileState::Untracked).then_some(*repo_path)
+                matches!(file_state, FileState::Untracked).then_some((*repo_path, false))
             })
             .collect_vec();
+        let mut ignored_paths = files
+            .iter()
+            .filter_map(|(repo_path, file_state)| {
+                (matches!(file_state, FileState::Ignored)
+                    && !ignored_dir.iter().any(|d| repo_path.starts_with(d)))
+                .then_some((*repo_path, false))
+            })
+            .collect_vec();
+        ignored_paths.extend(ignored_dir.iter().map(|p| (*p, true)));
 
-        // TODO: The collapse is incorrect as it does not take the ignored path
-        // into account.
         insta::assert_snapshot!(
-            collect_collapsed_untracked_files_string(&untracked_files, &tree),
+           collect_collapsed_untracked_files_string(
+               &untracked_files,
+               &ignored_paths.iter().map(|(p, _)| *p).collect(),
+               &tree),
             @r"
         ? untracked_top_level_file
         ? partially_tracked/e
         ? untracked/
         ? fully_untracked/
-        ? untracked_ignored/
+        ? untracked_ignored/m
         ? tracked_untracked/r
         ? dir/partially_tracked/w
         ? dir/untracked/
         ? dir/fully_untracked/
-        ? dir/untracked_ignored/
+        ? dir/untracked_ignored/ae
         ? dir/tracked_untracked/aj
+        "
+        );
+    }
+
+    #[test]
+    fn test_collapsed_untracked_files_nested_other_paths() {
+        let repo = TestRepo::init();
+        let tree = {
+            let mut builder = TestTreeBuilder::new(repo.repo.store().clone());
+            builder.file(repo_path("tracked"), "");
+            builder.write_merged_tree()
+        };
+
+        let untracked_files = vec![
+            (repo_path("u/a"), false),
+            (repo_path("u/sub/b"), false),
+            (repo_path("u/sub/deep/c"), false),
+            (repo_path("v/b"), false),
+            (repo_path("w/one/x"), false),
+        ];
+        // An ignored path blocks the collapse of all its ancestors, whatever
+        // its depth, and an ignored directory as well.
+        let other_paths = vec![
+            repo_path("u/sub/i"),
+            repo_path("v/a/x.o"),
+            repo_path("w/build"),
+        ];
+
+        insta::assert_snapshot!(
+            collect_collapsed_untracked_files_string(&untracked_files, &other_paths, &tree),
+            @r"
+        ? u/a
+        ? u/sub/b
+        ? u/sub/deep/
+        ? v/b
+        ? w/one/
         "
         );
     }
