@@ -4480,18 +4480,30 @@ fn warn_if_args_mismatch(
 }
 
 pub async fn visit_collapsed_untracked_files(
-    untracked_paths: impl IntoIterator<Item = impl AsRef<RepoPath>>,
+    untracked_paths: impl IntoIterator<Item = (impl AsRef<RepoPath>, bool)>,
+    other_non_tracked_paths: impl IntoIterator<Item = impl AsRef<RepoPath>>,
     tree: &MergedTree,
     mut on_path: impl FnMut(&RepoPath, bool) -> Result<(), CommandError>,
 ) -> Result<(), CommandError> {
     let trees = tree.trees().await?;
     let mut stack = vec![trees];
 
+    // Any directory containing other non tracked files, cannot be collapsed.
+    let non_collapsable_dirs: Vec<String> = other_non_tracked_paths
+        .into_iter()
+        .filter_map(|p| {
+            p.as_ref()
+                .parent()
+                .map(|p| p.to_owned().into_internal_string())
+        })
+        .dedup()
+        .collect();
+
     // TODO: This loop can be improved with BTreeMap cursors once that's stable,
     // would remove the need for the whole `skip_prefixed_by` thing and turn it
     // into a B-tree lookup.
     let mut skip_prefixed_by_dir: Option<RepoPathBuf> = None;
-    'untracked: for path in untracked_paths {
+    'untracked: for (path, is_dir) in untracked_paths {
         let path = path.as_ref();
         if skip_prefixed_by_dir
             .as_ref()
@@ -4523,17 +4535,32 @@ pub async fn visit_collapsed_untracked_files(
                 if let Some(subtree) = parent.sub_tree(component).await? {
                     stack.push(subtree);
                 } else {
-                    let dir = parent.dir().join(component);
+                    let mut candidate = parent.dir().join(component);
+                    let mut is_dir = true;
 
-                    on_path(&dir, true)?;
-                    skip_prefixed_by_dir = Some(dir);
+                    if non_collapsable_dirs
+                        .iter()
+                        .any(|p| p == path.as_ref().as_internal_file_string())
+                    {
+                        eprintln!("Path {candidate:?} is non collapsable");
+                        candidate = candidate.join(path.components().nth(i).expect(
+                            "should always a next component (worst case being the file name)",
+                        ));
+                        is_dir = candidate.components().count() != path.components().count();
+                        eprintln!("New candidate {candidate:?} {is_dir}");
+                    }
+
+                    on_path(&candidate, is_dir)?;
+                    if is_dir {
+                        skip_prefixed_by_dir = Some(candidate);
+                    }
 
                     continue 'untracked;
                 }
             }
         }
 
-        on_path(path, false)?;
+        on_path(path, is_dir)?;
     }
 
     Ok(())
@@ -4585,20 +4612,26 @@ mod tests {
     }
 
     fn collect_collapsed_untracked_files_string(
-        untracked_paths: &[&RepoPath],
+        untracked_paths: &Vec<(&RepoPath, bool)>,
+        other_non_tracked_paths: &Vec<&RepoPath>,
         tree: &MergedTree,
     ) -> String {
         let mut result = String::new();
-        visit_collapsed_untracked_files(untracked_paths, tree, |path, is_dir| {
-            result.push_str("? ");
-            if is_dir {
-                result.push_str(&path.to_internal_dir_string());
-            } else {
-                result.push_str(path.as_internal_file_string());
-            }
-            result.push('\n');
-            Ok(())
-        })
+        visit_collapsed_untracked_files(
+            untracked_paths.iter().map(|e| *e),
+            other_non_tracked_paths,
+            tree,
+            |path, is_dir| {
+                result.push_str("? ");
+                if is_dir {
+                    result.push_str(&path.to_internal_dir_string());
+                } else {
+                    result.push_str(path.as_internal_file_string());
+                }
+                result.push('\n');
+                Ok(())
+            },
+        )
         .block_on()
         .unwrap();
         result
@@ -4681,6 +4714,7 @@ mod tests {
             (repo_path("dir/tracked_untracked/ai"), FileState::Tracked),
             (repo_path("dir/tracked_untracked/aj"), FileState::Untracked),
         ];
+        let ignored_dir = [repo_path("fully_ignored"), repo_path("dir/fully_ignored")];
 
         let tree = {
             let mut builder = TestTreeBuilder::new(repo.repo.store().clone());
@@ -4710,25 +4744,35 @@ mod tests {
         let untracked_files = files
             .into_iter()
             .filter_map(|(repo_path, file_state)| {
-                matches!(file_state, FileState::Untracked).then_some(*repo_path)
+                matches!(file_state, FileState::Untracked).then_some((*repo_path, false))
             })
             .collect_vec();
+        let mut ignored_paths = files
+            .into_iter()
+            .filter_map(|(repo_path, file_state)| {
+                (matches!(file_state, FileState::Ignored)
+                    && !ignored_dir.iter().any(|d| repo_path.starts_with(d)))
+                .then_some((*repo_path, false))
+            })
+            .collect_vec();
+        ignored_paths.extend(ignored_dir.iter().map(|p| (*p, true)));
 
-        // TODO: The collapse is incorrect as it does not take the ignored path
-        // into account.
         insta::assert_snapshot!(
-            collect_collapsed_untracked_files_string(&untracked_files, &tree),
+           collect_collapsed_untracked_files_string(
+               &untracked_files,
+               &ignored_paths.iter().map(|(p, _)| *p).collect(),
+               &tree),
             @r"
         ? untracked_top_level_file
         ? partially_tracked/e
         ? untracked/
         ? fully_untracked/
-        ? untracked_ignored/
+        ? untracked_ignored/m
         ? tracked_untracked/r
         ? dir/partially_tracked/w
         ? dir/untracked/
         ? dir/fully_untracked/
-        ? dir/untracked_ignored/
+        ? dir/untracked_ignored/ae
         ? dir/tracked_untracked/aj
         "
         );
