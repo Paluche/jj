@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::BTreeMap;
-
 use futures::TryStreamExt as _;
 use itertools::Itertools as _;
 use jj_lib::commit::Commit;
@@ -23,12 +21,10 @@ use jj_lib::merge::Diff;
 use jj_lib::merged_tree::MergedTree;
 use jj_lib::repo::Repo;
 use jj_lib::repo_path::RepoPath;
-use jj_lib::repo_path::RepoPathBuf;
 use jj_lib::revset::RevsetExpression;
 use jj_lib::revset::RevsetFilterPredicate;
 use jj_lib::tree::TreeMergeExt as _;
 use jj_lib::working_copy::SnapshotStats;
-use jj_lib::working_copy::UntrackedReason;
 use tracing::instrument;
 
 use crate::cli_util::CommandHelper;
@@ -252,7 +248,7 @@ struct WorkingCopyStatus {
     parents: Vec<Commit>,
     parent_tree: MergedTree,
     tree: MergedTree,
-    untracked_paths: BTreeMap<RepoPathBuf, UntrackedReason>,
+    snapshot_stats: SnapshotStats,
 }
 
 impl WorkingCopyStatus {
@@ -261,11 +257,12 @@ impl WorkingCopyStatus {
     }
 
     fn has_any_untracked_paths(&self) -> bool {
-        !self.untracked_paths.is_empty()
+        !self.snapshot_stats.untracked_paths.is_empty()
     }
 
     fn untracked_paths_matching(&self, matcher: &dyn Matcher) -> impl Iterator<Item = &RepoPath> {
-        self.untracked_paths
+        self.snapshot_stats
+            .untracked_paths
             .keys()
             .filter(|path| matcher.matches(path))
             .map(|path| path.as_ref())
@@ -281,13 +278,12 @@ async fn collect_working_copy_status(
     let parents = commit.parents().await?;
     let parent_tree = commit.parent_tree(repo).await?;
     let tree = commit.tree();
-    let untracked_paths = snapshot_stats.untracked_paths;
 
     Ok(WorkingCopyStatus {
         commit,
         parents,
         parent_tree,
         tree,
-        untracked_paths,
+        snapshot_stats,
     })
 }
