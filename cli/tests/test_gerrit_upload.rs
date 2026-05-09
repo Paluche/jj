@@ -110,8 +110,10 @@ fn test_gerrit_upload_default_revision() {
         .success();
     work_dir.write_file("parent", "parent");
     let output = work_dir.run_jj(["gerrit", "upload", "--dry-run"]);
-    insta::assert_snapshot!(output, @"
+    insta::assert_snapshot!(output, @r"
     ------- stderr -------
+    Auto-tracking 1 new file:
+    A parent
     No revision provided. Defaulting to @
     Found 1 heads to push to Gerrit (remote 'origin'), target branch 'main'.
     Dry-run: Would push kkmpptxz a41ea4e9 parent

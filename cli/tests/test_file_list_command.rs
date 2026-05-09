@@ -103,8 +103,12 @@ fn test_file_list_normal_value() {
 
     let template = r#"path ++ " " ++ normal_value ++ "\n""#;
     let output = work_dir.run_jj(["file", "list", "-T", template]);
-    insta::assert_snapshot!(output, @"
+    insta::assert_snapshot!(output, @r"
     file 6b584e8ece562ebffc15d38808cd6b98fc3d97ea
+    [EOF]
+    ------- stderr -------
+    Auto-tracking 1 new file:
+    A file
     [EOF]
     ");
 }

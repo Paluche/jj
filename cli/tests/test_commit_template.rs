@@ -1263,7 +1263,7 @@ fn test_log_diff_predefined_formats() -> TestResult {
 
     // color, without paths
     let output = work_dir.run_jj(["log", "--no-graph", "--color=always", "-r@", "-T", template]);
-    insta::assert_snapshot!(output, @"
+    insta::assert_snapshot!(output, @r"
     === color_words ===
     [38;5;3mModified regular file file1:[39m
     [2m[38;5;1m   1[0m [2m[38;5;2m   1[0m: a
@@ -1302,6 +1302,10 @@ fn test_log_diff_predefined_formats() -> TestResult {
     [38;5;6mM file1[39m
     [38;5;6mM file2[39m
     [38;5;6mR {rename-source => rename-target}[39m
+    [EOF]
+    ------- stderr -------
+    Auto-tracking [38;5;2m1[39m new file:
+    [38;5;2mA rename-target[39m
     [EOF]
     ");
 
@@ -1761,8 +1765,12 @@ fn test_file_list_symlink() -> TestResult {
 
     let template = r#"separate(" ", path, "[" ++ file_type ++ "]") ++ "\n""#;
     let output = work_dir.run_jj(["file", "list", "-T", template]);
-    insta::assert_snapshot!(output, @"
+    insta::assert_snapshot!(output, @r"
     symlink [symlink]
+    [EOF]
+    ------- stderr -------
+    Auto-tracking 1 new file:
+    A symlink
     [EOF]
     ");
     Ok(())
@@ -1884,7 +1892,7 @@ fn test_log_git_format_patch_template() {
         "git_format_patch_email_headers",
         "-r@",
     ]);
-    insta::assert_snapshot!(output, @"
+    insta::assert_snapshot!(output, @r"
     From fee27496968a4347a49d69c0a634fc0d5cf7fbc0 Mon Sep 17 00:00:00 2001
     From: Test User <test.user@example.com>
     Date: Sat, 3 Feb 2001 04:05:08 +0700
@@ -1900,6 +1908,10 @@ fn test_log_git_format_patch_template() {
      file3 | 1 +
      3 files changed, 2 insertions(+), 2 deletions(-)
 
+    [EOF]
+    ------- stderr -------
+    Auto-tracking 1 new file:
+    A file3
     [EOF]
     ");
 }

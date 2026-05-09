@@ -29,9 +29,13 @@ fn test_file_search() {
     // Searches all files in the current revision by default and prints each
     // matched line prefixed by the file path
     let output = work_dir.run_jj(["file", "search", "--pattern=glob:*foo*"]);
-    insta::assert_snapshot!(output.normalize_backslash(), @"
+    insta::assert_snapshot!(output.normalize_backslash(), @r"
     dir/file3:-foobar-
     file1:-foo-
+    [EOF]
+    ------- stderr -------
+    Auto-tracking 1 new file:
+    A dir/file3
     [EOF]
     ");
 
@@ -101,10 +105,14 @@ fn test_file_search() {
     // Prints every matched line, not just the first
     work_dir.write_file("multi", "hit-one\nmiss\nhit-two\nhit-three\n");
     let output = work_dir.run_jj(["file", "search", "--pattern=hit", "multi"]);
-    insta::assert_snapshot!(output.normalize_backslash(), @"
+    insta::assert_snapshot!(output.normalize_backslash(), @r"
     multi:hit-one
     multi:hit-two
     multi:hit-three
+    [EOF]
+    ------- stderr -------
+    Auto-tracking 1 new file:
+    A multi
     [EOF]
     ");
     // --name-only collapses the same file to a single line
@@ -126,8 +134,12 @@ fn test_file_search() {
     // `Binary file matches: <path>` instead of raw bytes.
     work_dir.write_file("binfile", b"hit\0hit\n");
     let output = work_dir.run_jj(["file", "search", "--pattern=hit", "binfile"]);
-    insta::assert_snapshot!(output.normalize_backslash(), @"
+    insta::assert_snapshot!(output.normalize_backslash(), @r"
     Binary file matches: binfile
+    [EOF]
+    ------- stderr -------
+    Auto-tracking 1 new file:
+    A binfile
     [EOF]
     ");
     // --name-only on a binary match prints just the path.

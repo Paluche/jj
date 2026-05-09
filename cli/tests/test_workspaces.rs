@@ -335,8 +335,10 @@ fn test_workspaces_add_at_operation() {
 
     main_dir.write_file("file1", "");
     let output = main_dir.run_jj(["commit", "-m1"]);
-    insta::assert_snapshot!(output, @"
+    insta::assert_snapshot!(output, @r"
     ------- stderr -------
+    Auto-tracking 1 new file:
+    A file1
     Working copy  (@) now at: rlvkpnrz 59e07459 (empty) (no description set)
     Parent commit (@-)      : qpvuntsm 9e4b0b91 1
     [EOF]
@@ -344,8 +346,10 @@ fn test_workspaces_add_at_operation() {
 
     main_dir.write_file("file2", "");
     let output = main_dir.run_jj(["commit", "-m2"]);
-    insta::assert_snapshot!(output, @"
+    insta::assert_snapshot!(output, @r"
     ------- stderr -------
+    Auto-tracking 1 new file:
+    A file2
     Working copy  (@) now at: kkmpptxz 6e9610ac (empty) (no description set)
     Parent commit (@-)      : rlvkpnrz 8b7259b9 2
     [EOF]
@@ -1169,10 +1173,12 @@ fn test_workspaces_current_op_discarded_by_other(automatic: bool) {
         ");
 
         let output = secondary_dir.run_jj(["workspace", "update-stale"]);
-        insta::assert_snapshot!(output, @"
+        insta::assert_snapshot!(output, @r"
         ------- stderr -------
         Failed to read working copy's current operation; attempting recovery. Error message from read attempt: Object 3096d4eed63af882566700f7523bebb9b37d21d558d97c397a604fb1eeeff425ee30db2427ac40bc2a51030371e3ef424c7e09e48f3faa71b2af19c9156f4cbb of type operation not found
         Created and checked out recovery commit 866928d1e0fd
+        Auto-tracking 1 new file:
+        A added
         [EOF]
         ");
     }
@@ -1811,6 +1817,8 @@ fn test_workspaces_remove_snapshots_before_removal() {
     let output = main_dir.run_jj(["workspace", "remove", "secondary"]);
     insta::assert_snapshot!(output.normalize_backslash(), @r#"
     ------- stderr -------
+    Auto-tracking 1 new file:
+    A ../secondary/unsnapshotted.txt
     Snapshot commit created for workspace 'secondary': ff0805347b96
     Removed workspace directory "$TEST_ENV/secondary".
     [EOF]
@@ -1858,6 +1866,8 @@ fn test_workspaces_remove_snapshots_stale_before_removal() {
     let output = main_dir.run_jj(["workspace", "remove", "secondary"]);
     insta::assert_snapshot!(output.normalize_backslash(), @r#"
     ------- stderr -------
+    Auto-tracking 1 new file:
+    A ../secondary/unsnapshotted.txt
     Snapshot commit created for workspace 'secondary': ff0805347b96
     Removed workspace directory "$TEST_ENV/secondary".
     [EOF]
