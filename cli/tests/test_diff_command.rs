@@ -993,8 +993,7 @@ fn test_diff_relative_paths() {
     work_dir.write_file("dir2/file4", "bar4\n");
 
     let sub_dir1 = work_dir.dir("dir1");
-    let output = sub_dir1.run_jj(["diff"]);
-    #[cfg(unix)]
+    let output = sub_dir1.run_jj(["diff"]).normalize_backslash();
     insta::assert_snapshot!(output, @"
     Modified regular file file2:
        1     : foo2
@@ -1027,8 +1026,7 @@ fn test_diff_relative_paths() {
     [EOF]
     ");
 
-    let output = sub_dir1.run_jj(["diff", "-s"]);
-    #[cfg(unix)]
+    let output = sub_dir1.run_jj(["diff", "-s"]).normalize_backslash();
     insta::assert_snapshot!(output, @"
     M file2
     M subdir1/file3
@@ -1036,30 +1034,12 @@ fn test_diff_relative_paths() {
     M ../file1
     [EOF]
     ");
-    #[cfg(windows)]
-    insta::assert_snapshot!(output, @r"
-    M file2
-    M subdir1\file3
-    M ..\dir2\file4
-    M ..\file1
-    [EOF]
-    ");
-
-    let output = sub_dir1.run_jj(["diff", "--types"]);
-    #[cfg(unix)]
+    let output = sub_dir1.run_jj(["diff", "--types"]).normalize_backslash();
     insta::assert_snapshot!(output, @"
     FF file2
     FF subdir1/file3
     FF ../dir2/file4
     FF ../file1
-    [EOF]
-    ");
-    #[cfg(windows)]
-    insta::assert_snapshot!(output, @r"
-    FF file2
-    FF subdir1\file3
-    FF ..\dir2\file4
-    FF ..\file1
     [EOF]
     ");
 
@@ -1096,22 +1076,12 @@ fn test_diff_relative_paths() {
     [EOF]
     ");
 
-    let output = sub_dir1.run_jj(["diff", "--stat"]);
-    #[cfg(unix)]
+    let output = sub_dir1.run_jj(["diff", "--stat"]).normalize_backslash();
     insta::assert_snapshot!(output, @"
     file2         | 2 +-
     subdir1/file3 | 2 +-
     ../dir2/file4 | 2 +-
     ../file1      | 2 +-
-    4 files changed, 4 insertions(+), 4 deletions(-)
-    [EOF]
-    ");
-    #[cfg(windows)]
-    insta::assert_snapshot!(output, @r"
-    file2         | 2 +-
-    subdir1\file3 | 2 +-
-    ..\dir2\file4 | 2 +-
-    ..\file1      | 2 +-
     4 files changed, 4 insertions(+), 4 deletions(-)
     [EOF]
     ");
@@ -1830,7 +1800,7 @@ fn test_diff_color_words_omit_blank_right_line() {
     let output = work_dir
         .run_jj(["diff", "--color=always"])
         .normalize_stdout_with(strip_ansi_escape_codes);
-    insta::assert_snapshot!(output, @"
+    insta::assert_snapshot!(output, @r"
     Modified regular file file1:
        1    1: a x
             2:  y
