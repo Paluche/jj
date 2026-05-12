@@ -1,5 +1,5 @@
 [templates]
-bookmark_list = 'format_commit_ref(self, "bookmark") ++ "\n"'
+bookmark_list = 'format_commit_ref(self, "bookmarks") ++ "\n"'
 
 commit_summary = 'format_commit_summary_with_refs(self, format_commit_ref_names(bookmarks))'
 arrange = 'builtin_log_compact'
@@ -506,7 +506,8 @@ separate(" ",
   format_short_change_id_with_change_offset(commit),
   format_short_signature(commit.author()),
   format_timestamp(commit_timestamp(commit)),
-  commit.bookmarks(),
+  commit.local_bookmarks(),
+  commit.remote_bookmarks(),
   commit.tags(),
   commit.working_copies(),
   format_short_commit_id(commit.commit_id()),

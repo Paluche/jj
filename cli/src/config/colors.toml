@@ -1,18 +1,57 @@
 [colors]
+# Format of printed messages.
 "error" = { fg = "default", bold = true }
-"error_source" = { fg = "default" }
-"warning" = { fg = "default", bold = true }
-"hint" = { fg = "default" }
 "error heading" = { fg = "red", bold = true }
+"error_source" = { fg = "default" }
 "error_source heading" = { bold = true }
+"warning" = { fg = "default", bold = true }
 "warning heading" = { fg = "yellow", bold = true }
+"hint" = { fg = "default" }
 "hint heading" = { fg = "cyan", bold = true }
-
 "conflict_description" = "yellow"
 "conflict_description difficult" = "red"
 
+# Format for the different type of information displayed.
 "commit_id" = "blue"
+"working_copy commit_id" = "bright blue"
+
 "change_id" = "magenta"
+"working_copy change_id" = "bright magenta"
+
+"author" = "yellow"
+"working_copy author" = "yellow"
+
+"committer" = "yellow"
+# We do not use bright yellow because of how it looks on xterm's default theme.
+# https://github.com/jj-vcs/jj/issues/528
+"working_copy committer" = "yellow"
+
+"timestamp" = "cyan"
+"working_copy timestamp" = "bright cyan"
+
+# Tags color
+"tag" = "magenta"
+"working_copy tag" = "bright magenta"
+
+"tags" = "magenta"
+"working_copy tags" = "bright magenta"
+
+# Bookmark colors
+# - Color used for jj Bookmark list
+"bookmark" = "magenta"
+"working_copy bookmark" = "bright magenta"
+
+# - Remote or local bookmarks
+"bookmarks" = "magenta"
+"working_copy bookmarks" = "bright magenta"
+
+# - Local bookmarks
+"local_bookmarks" = "magenta"
+"working_copy local_bookmarks" = "bright magenta"
+
+# - Remote bookmarks
+"remote_bookmarks" = "magenta"
+"working_copy remote_bookmarks" = "bright magenta"
 
 # Unique prefixes and the rest for change & commit ids
 "prefix" = { bold = true }
@@ -20,17 +59,10 @@
 "change_offset" = { bold = true }
 "hidden prefix" = "default"
 
-"author" = "yellow"
-"committer" = "yellow"
-"timestamp" = "cyan"
 "working_copies" = "green"
+"working_copy working_copies" = "bright green"
+
 "workspace_name" = "green"
-"bookmark" = "magenta"
-"bookmarks" = "magenta"
-"local_bookmarks" = "magenta"
-"remote_bookmarks" = "magenta"
-"tag" = "magenta"
-"tags" = "magenta"
 # TODO: remove git_refs and git_head (but not git_ref) in jj 0.43+
 "git_ref" = "green"
 "git_refs" = "green"
@@ -48,20 +80,6 @@
 "root" = "green"
 
 "working_copy" = { bold = true }
-"working_copy commit_id" = "bright blue"
-"working_copy change_id" = "bright magenta"
-# We do not use bright yellow because of how it looks on xterm's default theme.
-# https://github.com/jj-vcs/jj/issues/528
-"working_copy author" = "yellow"
-"working_copy committer" = "yellow"
-"working_copy timestamp" = "bright cyan"
-"working_copy working_copies" = "bright green"
-"working_copy bookmark" = "bright magenta"
-"working_copy bookmarks" = "bright magenta"
-"working_copy local_bookmarks" = "bright magenta"
-"working_copy remote_bookmarks" = "bright magenta"
-"working_copy tag" = "bright magenta"
-"working_copy tags" = "bright magenta"
 "working_copy git_ref" = "bright green"
 "working_copy git_refs" = "bright green"
 "working_copy divergent" = "bright magenta"
