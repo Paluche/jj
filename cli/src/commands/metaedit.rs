@@ -44,7 +44,7 @@ pub(crate) struct MetaeditArgs {
     #[arg(add = ArgValueCompleter::new(complete::revset_expression_mutable))]
     revisions_pos: Vec<RevisionArg>,
 
-    #[arg(short = 'r', hide = true, value_name = "REVSETS")]
+    #[arg(short = 'r', value_name = "REVSETS")]
     #[arg(add = ArgValueCompleter::new(complete::revset_expression_mutable))]
     revisions_opt: Vec<RevisionArg>,
 

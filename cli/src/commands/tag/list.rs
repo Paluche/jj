@@ -68,7 +68,6 @@ pub struct TagListArgs {
     /// [string pattern syntax]:
     ///     https://docs.jj-vcs.dev/latest/revsets/#string-patterns
     #[arg(long = "remote", value_name = "REMOTE", conflicts_with = "all_remotes")]
-    #[arg(hide = true)] // TODO: unhide when remote tags get stabilized (#7528)
     #[arg(add = ArgValueCandidates::new(complete::git_remotes))]
     remotes: Option<Vec<String>>,
 

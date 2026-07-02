@@ -152,7 +152,6 @@ pub struct GitPushArgs {
     /// [string pattern syntax]:
     ///     https://docs.jj-vcs.dev/latest/revsets/#string-patterns
     #[arg(long, short, group = "specific")]
-    #[arg(hide = true)] // TODO: unhide when this gets stabilized (#7528)
     tag: Vec<String>,
 
     /// Push all bookmarks (including new bookmarks)

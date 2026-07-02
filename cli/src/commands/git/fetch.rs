@@ -101,7 +101,6 @@ pub struct GitFetchArgs {
     /// [logical operators]:
     ///     https://docs.jj-vcs.dev/latest/revsets/#string-patterns
     #[arg(long = "tag", short, group = "specific", value_name = "TAG")]
-    #[arg(hide = true)] // TODO: unhide when this gets stabilized (#7528)
     tags: Option<Vec<String>>,
 
     /// Fetch only tracked bookmarks
